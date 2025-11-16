@@ -1,0 +1,194 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function onlyAllowedKeysChanged(allowed) {
+      return request.resource.data.diff(resource.data).changedKeys().hasOnly(allowed);
+    }
+    function isIncrementByOne(field) {
+      return request.resource.data[field] == resource.data[field] + 1;
+    }
+    function isAdmin(uid) {
+      return request.auth != null && request.auth.token.admin == true;
+    }
+
+    // Dev codes: public read
+    match /devCodes/{docId} {
+      allow read: if true;
+    }
+
+    // Cloudinary credentials: authenticated users can read
+    match /imageStorage/{docId} {
+      allow read: if request.auth != null;
+    }
+    // Alternative cloudinary: authenticated users can read
+    match /cloudinary/{docId} {
+      allow read: if request.auth != null;
+    }
+
+    // Users
+    match /users/{uid} {
+      // Any signed-in user can read public profile data
+      allow read: if request.auth != null;
+
+      // Owner write their own profile
+      allow write: if request.auth != null && request.auth.uid == uid;
+
+      // Allow updating followersCount only (on any user)
+      allow update: if request.auth != null
+                    && onlyAllowedKeysChanged(['followersCount']);
+
+      // Followers subcollection
+      match /followers/{followerId} {
+        allow read: if request.auth != null
+                    && (
+                         request.auth.uid == uid ||
+                         request.auth.uid == followerId ||
+                         request.auth.uid == resource.data.followerId
+                       );
+
+        // Follow: requester creates a doc with id == their uid
+        allow create: if request.auth != null
+                      && request.auth.uid == followerId
+                      && request.resource.data.followerId == request.auth.uid
+                      && uid != request.auth.uid;
+
+        // Unfollow: requester deletes their follower doc
+        allow delete: if request.auth != null
+                      && request.auth.uid == followerId;
+
+        // No updates
+        allow update: if false;
+      }
+
+      // Following subcollection
+      match /following/{targetUserId} {
+        allow read, write: if request.auth != null
+                           && request.auth.uid == uid;
+      }
+
+      // Per-user status subcollection
+      match /status/{statusId} {
+        // Only the user can read their statuses
+        allow read: if request.auth != null && request.auth.uid == uid;
+
+        // Any authenticated client can create a status for the user, strict shape
+        allow create: if request.auth != null
+                      && request.resource.data.keys().hasOnly(
+                           ['title','body','images','link','timestamp','isRead']
+                         )
+                      && request.resource.data.isRead == false
+                      && (request.resource.data.images == null || request.resource.data.images is list)
+                      && (request.resource.data.link == null || request.resource.data.link is string);
+
+        // Only the recipient can mark as read (isRead: false -> true)
+        allow update: if request.auth != null
+                      && request.auth.uid == uid
+                      && request.resource.data.keys().hasOnly(['isRead'])
+                      && resource.data.isRead == false
+                      && request.resource.data.isRead == true;
+
+        allow delete: if false;
+      }
+    }
+
+    // Posts
+    match /posts/{postId} {
+      // Everyone can read posts
+      allow read: if true;
+  // Add this line:
+  allow update, delete: if isAdmin(request.auth.uid);
+
+      // Create: authenticated and author is requester
+      allow create: if request.auth != null
+                    && request.resource.data.userId == request.auth.uid;
+
+      // Owner can update/delete entirely
+      allow update, delete: if request.auth != null
+                            && resource.data.userId == request.auth.uid;
+
+      // Toggle reactions only
+      allow update: if request.auth != null
+                    && onlyAllowedKeysChanged(['likedBy','dislikedBy','likes','dislikes']);
+
+      // Increment replyCount by exactly +1
+      allow update: if request.auth != null
+                    && onlyAllowedKeysChanged(['replyCount'])
+                    && isIncrementByOne('replyCount');
+
+      // Replies
+      match /replies/{replyId} {
+        allow read: if true;
+        allow create: if request.auth != null
+                      && request.resource.data.userId == request.auth.uid;
+        allow update, delete: if request.auth != null
+                              && resource.data.userId == request.auth.uid;
+      }
+    }
+
+    // Reports: authenticated create with strict validation; no read/update/delete
+    match /reports/{reportId} {
+      allow create: if request.auth != null
+                    && request.resource.data.keys().hasOnly(
+                         ['id','postId','reporterId','reporterName','reason','createdAt','status']
+                       )
+                    && request.resource.data.reporterId == request.auth.uid
+                    && request.resource.data.postId is string
+                    && request.resource.data.reporterName is string
+                    && request.resource.data.reason is string
+                    && request.resource.data.status == 'new';
+      allow read, update, delete: if false;
+    }
+
+    // Notifications (very loose): any authenticated user can read and write
+    match /notifications/{notificationId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Legacy root status (disabled writes now that we use per-user status)
+    match /status/{docId} {
+      allow read: if request.auth != null;
+      allow create, update, delete: if false;
+    }
+
+    // News collection
+    match /news/{newsId} {
+      // Choose visibility: public read
+      allow read: if true;
+      // Or restrict: allow read: if request.auth != null;
+
+      // Admin-only writes with strict fields
+      allow create: if isAdmin(request.auth.uid)
+                    && request.resource.data.keys().hasOnly(
+                         ['title','body','isActive','timestamp']
+                       )
+                    && request.resource.data.title is string
+                    && request.resource.data.body is string
+                    && request.resource.data.isActive is bool
+                    && request.resource.data.timestamp is timestamp;
+
+      // Admin-only updates without schema drift
+      allow update: if isAdmin(request.auth.uid)
+                    && request.resource.data.keys().hasOnly(
+                         ['title','body','isActive','timestamp']
+                       );
+
+      allow delete: if isAdmin(request.auth.uid);
+    }
+
+    // App updates and admin notification config
+    match /appUpdates/{docId} {
+      allow read: if docId == 'devlink' || (docId == 'adminNotificationID' && request.auth != null);
+      allow write: if docId == 'adminNotificationID' && request.auth != null;
+    }
+match /news/{newsId} {
+  // Authenticated users can read and write (create, update, delete)
+  allow read, write: if request.auth != null;
+}
+    // Deny everything else
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

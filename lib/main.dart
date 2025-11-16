@@ -1,0 +1,64 @@
+// ignore_for_file: avoid_print, depend_on_referenced_packages
+
+import 'package:devlink/auth/auth_gate.dart';
+import 'package:devlink/utility/customTheme.dart';
+import 'package:devlink/screens/about_screen.dart';
+import 'package:devlink/screens/terms_screen.dart';
+import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import 'package:devlink/providers/theme_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
+  final savedMode = await ThemeProvider.readSaved();
+  final prefs = await SharedPreferences.getInstance();
+  final accepted = prefs.getBool('tosAccepted') ?? false;
+  runApp(
+    ChangeNotifierProvider(
+      create: (_) => ThemeProvider.preset(savedMode),
+      child: MyApp(showTermsOnStart: !accepted),
+    ),
+  );
+}
+
+class MyApp extends StatelessWidget {
+  final bool showTermsOnStart;
+  const MyApp({super.key, required this.showTermsOnStart});
+
+  // This widget is the root of your application.
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final scheme = theme.colorScheme;
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        systemNavigationBarColor: scheme.surface,
+        systemNavigationBarDividerColor: Colors.transparent,
+        statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+        systemNavigationBarIconBrightness: isDark
+            ? Brightness.light
+            : Brightness.dark,
+        systemNavigationBarContrastEnforced: false,
+      ),
+      child: MaterialApp(
+        debugShowCheckedModeBanner: false,
+        title: 'DevLink',
+        theme: customTheme(),
+        darkTheme: customDarkTheme(),
+        themeMode: context.watch<ThemeProvider>().themeMode,
+        initialRoute: showTermsOnStart ? '/terms' : '/',
+        routes: {
+          '/': (context) => const AuthGate(),
+          '/about': (context) => const AboutScreen(),
+          '/terms': (context) => const TermsScreen(),
+        },
+      ),
+    );
+  }
+}

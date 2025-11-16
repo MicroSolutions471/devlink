@@ -1,0 +1,55 @@
+{
+  "project_info": {
+    "project_number": "942804130190",
+    "project_id": "devlink-innova",
+    "storage_bucket": "devlink-innova.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:942804130190:android:acea955b946894cc3b6cdf",
+        "android_client_info": {
+          "package_name": "com.innova.devlink"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "942804130190-easa5s9cdls819sjtfa80v8doi4cqh80.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.innova.devlink",
+            "certificate_hash": "8447e66f2637e07f5083f918fe1053c843a846e3"
+          }
+        },
+        {
+          "client_id": "942804130190-m6n7lhlca987vtr1nc184oqirk3n2tql.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.innova.devlink",
+            "certificate_hash": "5c856a101197eceb14423c854dd8790e7c58cdad"
+          }
+        },
+        {
+          "client_id": "942804130190-2gcmoed6f0fj3ou2bgecj40u83qe77fl.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCWSx6Zxdi5PQkVND_LCSXWHirJMDelemQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "942804130190-2gcmoed6f0fj3ou2bgecj40u83qe77fl.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

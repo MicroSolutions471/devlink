@@ -1,0 +1,84 @@
+name: devlink
+description: "A Community for developers to Seek & Grow"
+
+publish_to: 'none' 
+
+
+version: 1.0.2+2
+
+environment:
+  sdk: ^3.9.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+
+  cupertino_icons: ^1.0.8
+  firebase_auth: ^6.1.2
+  cloud_firestore: ^6.1.0
+  onesignal_flutter: ^5.3.4
+  carbon_icons: ^0.0.1+2
+  fluentui_icons: ^1.0.0
+  enefty_icons: ^1.0.9
+  ming_cute_icons: ^0.0.7
+  loading_animation_widget: ^1.3.0
+  google_sign_in: ^6.3.0
+  dio: ^5.9.0
+  url_launcher: ^6.3.2
+  line_awesome_flutter: ^3.0.1
+  image_picker: ^1.1.2
+  path_provider: ^2.1.5
+  permission_handler: ^12.0.1
+  open_file: ^3.5.10
+  shimmer: ^3.0.0
+
+  provider: ^6.1.2
+  shared_preferences: ^2.5.3
+  flutter_rating_bar: ^4.0.1
+
+dev_dependencies:
+
+  flutter_test:
+    sdk: flutter
+  flutter_launcher_icons: ^0.13.1
+
+
+  flutter_lints: ^5.0.0
+
+
+flutter:
+
+
+  uses-material-design: true
+
+
+  assets:
+    - assets/images/
+    - assets/images/me.jpg
+
+  fonts:
+    - family: Poppins
+      fonts:
+        - asset: assets/fonts/Poppins-Regular.ttf
+        - asset: assets/fonts/Poppins-Bold.ttf
+          weight: 200
+        - asset: assets/fonts/Poppins-SemiBold.ttf
+        - asset: assets/fonts/Poppins-Light.ttf
+        - asset: assets/fonts/Poppins-Medium.ttf
+    - family: Geist
+      fonts:
+        - asset: assets/fonts/Geist-Regular.ttf
+        - asset: assets/fonts/Geist-Bold.ttf
+          weight: 200
+        - asset: assets/fonts/Geist-SemiBold.ttf
+        - asset: assets/fonts/Geist-Light.ttf
+        - asset: assets/fonts/Geist-Medium.ttf
+
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: assets/images/app_icon.png
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: assets/images/app_icon.png
+  min_sdk_android: 21
