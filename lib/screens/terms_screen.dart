@@ -145,23 +145,31 @@ class _TermsScreenState extends State<TermsScreen> {
                   padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
                   child: Column(
                     children: [
-                      Row(
-                        children: [
-                          Checkbox(
-                            activeColor: primaryColor,
-                            value: _agree,
-                            onChanged: (v) =>
-                                setState(() => _agree = v ?? false),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'I have read and agree to the Terms of Service',
-                              style: theme.textTheme.bodyMedium,
+                      GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _agree = !_agree;
+                          });
+                        },
+                        child: Row(
+                          children: [
+                            Checkbox(
+                              activeColor: primaryColor,
+                              value: _agree,
+                              onChanged: (v) =>
+                                  setState(() => _agree = v ?? false),
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'I have read and agree to the Terms of Service',
+                                style: theme.textTheme.bodyMedium,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
+
                       const SizedBox(height: 8),
                       SizedBox(
                         width: double.infinity,

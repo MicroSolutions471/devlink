@@ -1,5 +1,7 @@
 // ignore_for_file: use_build_context_synchronously, avoid_print, deprecated_member_use, depend_on_referenced_packages
 
+import 'dart:math';
+
 import 'package:devlink/utility/customTheme.dart';
 import 'package:devlink/widgets/loading.dart';
 import 'package:flutter/material.dart';
@@ -139,8 +141,9 @@ class UpdateChecker {
       if (directory == null) {
         throw Exception('Could not access storage directory');
       }
-
       final downloadPath = '${directory.path}/Innova_Store_v$version.apk';
+      debugPrint('Resolved download URL: $downloadUrl');
+      debugPrint('Resolved download path: $downloadPath');
       final file = File(downloadPath);
 
       // Check if file already exists
@@ -163,6 +166,7 @@ class UpdateChecker {
         ),
       );
     } catch (e) {
+      debugPrint(e.toString());
       if (Navigator.canPop(context)) {
         Navigator.of(context).pop();
       }
@@ -451,6 +455,7 @@ class UpdateChecker {
   }
 
   static void _showErrorDialog(BuildContext context, String error) {
+    debugPrint('Update error: $error');
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -507,6 +512,10 @@ class _DownloadDialogState extends State<DownloadDialog> {
 
   Future<void> _startDownload() async {
     try {
+      debugPrint('Starting APK download');
+      debugPrint('Download URL: ${widget.downloadUrl}');
+      debugPrint('Download path: ${widget.downloadPath}');
+
       final dio = Dio();
       await dio.download(
         widget.downloadUrl,
@@ -521,8 +530,25 @@ class _DownloadDialogState extends State<DownloadDialog> {
           }
         },
       );
+
+      debugPrint('Download completed successfully');
       widget.onDownloadComplete(widget.downloadPath);
-    } catch (e) {
+    } catch (e, stackTrace) {
+      debugPrint('Download failed: $e');
+      debugPrint('Stack trace: $stackTrace');
+
+      // Try to log HTTP details if this is a Dio HTTP error
+      try {
+        final dynamic error = e;
+        final statusCode = error.response?.statusCode;
+        final data = error.response?.data;
+        final headers = error.response?.headers;
+
+        debugPrint('HTTP status code: $statusCode');
+        debugPrint('Response headers: $headers');
+        debugPrint('Response data: $data');
+      } catch (_) {}
+
       setState(() {
         _isDownloading = false;
         _error = e.toString();
