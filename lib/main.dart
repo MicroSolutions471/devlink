@@ -6,6 +6,7 @@ import 'package:devlink/screens/about_screen.dart';
 import 'package:devlink/screens/terms_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:devlink/providers/theme_provider.dart';
@@ -14,6 +15,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
+  await _loadPrimaryColorFromRemote();
   final savedMode = await ThemeProvider.readSaved();
   final prefs = await SharedPreferences.getInstance();
   final accepted = prefs.getBool('tosAccepted') ?? false;
@@ -61,4 +63,56 @@ class MyApp extends StatelessWidget {
       ),
     );
   }
+}
+
+Future<void> _loadPrimaryColorFromRemote() async {
+  try {
+    print('[main] Loading primary color from remote...');
+    final doc = await FirebaseFirestore.instance
+        .collection('appUpdates')
+        .doc('colors')
+        .get();
+    final data = doc.data();
+    print('[main] appUpdates/colors data: $data');
+    if (data == null) return;
+    final value = data['primaryColor'];
+    print('[main] remote primaryColor raw value: $value');
+    if (value is int) {
+      primaryColor = Color(value);
+      print('[main] primaryColor set from int before runApp: $primaryColor');
+    } else if (value is String && value.isNotEmpty) {
+      final parsed = _parseHexColor(value);
+      if (parsed != null) {
+        primaryColor = parsed;
+        print('[main] primaryColor set from string before runApp: $parsed');
+      } else {
+        print(
+          '[main] Failed to parse string primaryColor in main, keeping default blue',
+        );
+      }
+    } else {
+      print(
+        '[main] primaryColor missing or empty in main, keeping default blue',
+      );
+    }
+  } catch (_) {
+    print('[main] Failed to load primary color from remote');
+  }
+}
+
+Color? _parseHexColor(String input) {
+  var hex = input.trim();
+  if (hex.startsWith('#')) {
+    hex = hex.substring(1);
+  }
+  if (hex.length == 6) {
+    hex = 'FF$hex';
+  }
+  if (hex.length == 8) {
+    final value = int.tryParse(hex, radix: 16);
+    if (value != null) {
+      return Color(value);
+    }
+  }
+  return null;
 }

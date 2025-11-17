@@ -1,7 +1,5 @@
 // ignore_for_file: use_build_context_synchronously, avoid_print, deprecated_member_use, depend_on_referenced_packages
 
-import 'dart:math';
-
 import 'package:devlink/utility/customTheme.dart';
 import 'package:devlink/widgets/loading.dart';
 import 'package:flutter/material.dart';
@@ -16,7 +14,11 @@ import 'package:open_file/open_file.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 class UpdateChecker {
+  static bool _hasAutoChecked = false;
+
   static Future<void> checkForUpdate(BuildContext context) async {
+    if (_hasAutoChecked) return;
+    _hasAutoChecked = true;
     try {
       final doc = await FirebaseFirestore.instance
           .collection('appUpdates')

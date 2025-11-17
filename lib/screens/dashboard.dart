@@ -206,9 +206,10 @@ class _DashboardState extends State<Dashboard> {
   @override
   void initState() {
     super.initState();
-    // Start real-time status listener after first frame for a stable context
+    // Start real-time status listener and perform a one-time update check
     WidgetsBinding.instance.addPostFrameCallback((_) {
       StatusListener.listenForNewStatus(context);
+      UpdateChecker.checkForUpdate(context);
     });
 
     final currentUserId = FirebaseAuth.instance.currentUser?.uid;
@@ -235,14 +236,6 @@ class _DashboardState extends State<Dashboard> {
     StatusListener.cancelStatusListeners();
     _searchController.dispose();
     super.dispose();
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      UpdateChecker.checkForUpdate(context);
-    });
   }
 
   void _toggleSearch() {
@@ -837,14 +830,6 @@ class _SearchFollowButtonState extends State<_SearchFollowButton> {
   @override
   void dispose() {
     super.dispose();
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      UpdateChecker.checkForUpdate(context);
-    });
   }
 
   Future<void> _load() async {

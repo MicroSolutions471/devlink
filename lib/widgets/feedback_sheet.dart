@@ -140,10 +140,11 @@ class _FeedbackSheetState extends State<FeedbackSheet>
   Color _getRatingColor() {
     final scheme = Theme.of(context).colorScheme;
     if (_rating == 0) return scheme.onSurface.withOpacity(0.6);
-    if (_rating <= 2) return scheme.error;
-    if (_rating <= 3) return scheme.tertiary;
-    if (_rating <= 4) return scheme.primary;
-    return scheme.secondary;
+    if (_rating <= 1) return Colors.red;
+    if (_rating <= 2) return Colors.orange;
+    if (_rating <= 3) return Colors.amber;
+    if (_rating <= 4) return Colors.lightGreen;
+    return Colors.green;
   }
 
   Future<void> _submit() async {
@@ -346,7 +347,7 @@ class _FeedbackSheetState extends State<FeedbackSheet>
                           padding: const EdgeInsets.symmetric(vertical: 0),
                         ),
                         child: _isSubmitting
-                            ? Loading.medium()
+                            ? Loading.medium(color: primaryColor)
                             : const Text(
                                 'Submit',
                                 style: TextStyle(
