@@ -2,6 +2,7 @@
 
 class OneSignalConfig {
   static const appId = 'e4bef073-ffbb-4a1e-b2b2-bd6688ba4fb8';
-  static const appKey =
-      'os_v2_app_4s7pa477xnfb5mvsxvtirospxa4vyfvxgzzekw45m5nzrlqprgaqpuarnr3wkfscmdyb7nrvgo7wxvqhadobaf5cyayeodfmpkhhexy';
+  static const fallbackAppKey =
+      'os_v2_app_4s7pa477xnfb5mvsxvtirospxcg6qb5pyjougveifdwj5cphryact7varoel7mjfjnyeyhux4oyecwkcb3rb4rzywzwo62fg4mtgley';
+  static String appKey = fallbackAppKey;
 }

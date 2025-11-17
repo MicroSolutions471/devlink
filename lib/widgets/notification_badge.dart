@@ -14,10 +14,27 @@ class NotificationBadge extends StatelessWidget {
       stream: FirebaseFirestore.instance
           .collection('notifications')
           .where('toUserId', isEqualTo: currentUserId)
-          .where('isRead', isEqualTo: false)
           .snapshots(),
       builder: (context, snapshot) {
-        final unreadCount = snapshot.data?.docs.length ?? 0;
+        if (snapshot.hasError) {
+          return IconButton(
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const NotificationsScreen(),
+                ),
+              );
+            },
+            icon: Icon(EneftyIcons.notification_bing_outline),
+          );
+        }
+
+        final docs = snapshot.data?.docs ?? const [];
+        final unreadCount = docs.where((doc) {
+          final data = doc.data();
+          final isRead = data['isRead'] as bool?;
+          return isRead != true;
+        }).length;
 
         return Stack(
           children: [

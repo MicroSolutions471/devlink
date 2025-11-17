@@ -11,10 +11,12 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:devlink/providers/theme_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:devlink/config/oneSignal_config.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
+  await _loadOneSignalKeyFromRemote();
   await _loadPrimaryColorFromRemote();
   final savedMode = await ThemeProvider.readSaved();
   final prefs = await SharedPreferences.getInstance();
@@ -62,6 +64,55 @@ class MyApp extends StatelessWidget {
         },
       ),
     );
+  }
+}
+
+Future<void> _loadOneSignalKeyFromRemote() async {
+  debugPrint("🔄 Starting OneSignal key fetch from Firestore...");
+
+  try {
+    final doc = await FirebaseFirestore.instance
+        .collection('appUpdates')
+        .doc('keys')
+        .get();
+
+    if (!doc.exists) {
+      debugPrint("❌ Firestore document 'appUpdates/keys' does NOT exist.");
+      return;
+    }
+
+    final data = doc.data();
+    if (data == null) {
+      debugPrint("❌ Firestore returned NULL data for 'appUpdates/keys'.");
+      return;
+    }
+
+    debugPrint("📄 Raw Firestore data: $data");
+
+    final value = data['apiKey'];
+
+    if (value == null) {
+      debugPrint("❌ 'apiKey' field is missing in Firestore document.");
+      return;
+    }
+
+    if (value is! String) {
+      debugPrint(
+        "❌ 'apiKey' is not a String. Found type: ${value.runtimeType}",
+      );
+      return;
+    }
+
+    if (value.isEmpty) {
+      debugPrint("❌ 'apiKey' is an empty string.");
+      return;
+    }
+
+    OneSignalConfig.appKey = value;
+    debugPrint("✅ OneSignal API key loaded successfully: $value");
+  } catch (e, stack) {
+    debugPrint("🔥 Error loading OneSignal key: $e");
+    debugPrint("📌 Stack trace: $stack");
   }
 }
 

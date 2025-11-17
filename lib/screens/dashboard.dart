@@ -90,10 +90,9 @@ class _NewsTickerStripState extends State<NewsTickerStrip> {
           _startAutoScroll(docs.length);
         });
 
-        return Container(
+        return SizedBox(
           width: double.infinity,
           height: 40,
-          decoration: BoxDecoration(color: primaryColor.withValues(alpha: 0.1)),
           child: PageView.builder(
             controller: _pageController,
             itemCount: docs.length,
@@ -101,7 +100,17 @@ class _NewsTickerStripState extends State<NewsTickerStrip> {
               final data = docs[index].data();
               final title = (data['title'] as String?)?.trim() ?? '';
               final body = (data['body'] as String?)?.trim() ?? '';
-              return Padding(
+
+              // Use per-news color if available, otherwise fall back to primaryColor
+              final colorValue = data['color'] as int?;
+              final newsColor = colorValue != null
+                  ? Color(colorValue)
+                  : primaryColor;
+
+              return Container(
+                decoration: BoxDecoration(
+                  color: newsColor.withValues(alpha: 0.08),
+                ),
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: Row(
                   children: [
@@ -112,7 +121,7 @@ class _NewsTickerStripState extends State<NewsTickerStrip> {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontSize: 13,
-                          color: primaryColor,
+                          color: newsColor,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -123,6 +132,7 @@ class _NewsTickerStripState extends State<NewsTickerStrip> {
                       style: TextButton.styleFrom(
                         padding: const EdgeInsets.symmetric(horizontal: 10),
                         minimumSize: const Size(0, 32),
+                        foregroundColor: newsColor,
                       ),
                       child: const Text(
                         'View',
