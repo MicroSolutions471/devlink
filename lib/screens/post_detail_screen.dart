@@ -8,6 +8,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:devlink/models/post.dart';
 import 'package:devlink/widgets/replies_sheet.dart';
 import 'package:fluentui_icons/fluentui_icons.dart';
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:devlink/widgets/fullscreen_image_viewer.dart';
 import 'package:devlink/utility/user_colors.dart';
@@ -389,136 +390,153 @@ class _PostDetailScreenState extends State<PostDetailScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Post')),
-      body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-        stream: FirebaseFirestore.instance
-            .collection('posts')
-            .doc(widget.postId)
-            .snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const ShimmerPostDetailCard();
-          }
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final isDark = cs.brightness == Brightness.dark;
+    final scheme = isDark ? cs.surface : cs.surfaceContainerHighest;
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        systemNavigationBarColor: isDark ? scheme : Colors.white,
+        systemNavigationBarDividerColor: Colors.transparent,
+        statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+        systemNavigationBarIconBrightness: isDark
+            ? Brightness.light
+            : Brightness.dark,
+        systemNavigationBarContrastEnforced: false,
+      ),
+      child: Scaffold(
+        appBar: AppBar(title: const Text('Post')),
+        body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+          stream: FirebaseFirestore.instance
+              .collection('posts')
+              .doc(widget.postId)
+              .snapshots(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const ShimmerPostDetailCard();
+            }
 
-          if (!snapshot.hasData || !snapshot.data!.exists) {
-            return const Center(child: Text('Post not found'));
-          }
+            if (!snapshot.hasData || !snapshot.data!.exists) {
+              return const Center(child: Text('Post not found'));
+            }
 
-          final post = Post.fromDoc(snapshot.data!);
-          final postRef = snapshot.data!.reference;
-          final uid = FirebaseAuth.instance.currentUser?.uid;
+            final post = Post.fromDoc(snapshot.data!);
+            final postRef = snapshot.data!.reference;
+            final uid = FirebaseAuth.instance.currentUser?.uid;
 
-          return SingleChildScrollView(
-            child: Column(
-              children: [
-                // Main Post
-                AnimatedBuilder(
-                  animation: _highlightAnimation,
-                  builder: (context, child) {
-                    return Container(
-                      color: _highlightedItemId == widget.postId
-                          ? _highlightAnimation.value
-                          : Colors.transparent,
-                      child: _buildPostCard(post, postRef, uid),
-                    );
-                  },
-                ),
-
-                Divider(
-                  thickness: 8,
-                  color: Theme.of(context).dividerColor.withOpacity(0.06),
-                ),
-
-                // Replies Section
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      const Text(
-                        'Replies',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const Spacer(),
-                      if (_canReply)
-                        TextButton.icon(
-                          onPressed: () => _openRepliesSheet(),
-                          icon: const Icon(Icons.reply, size: 18),
-                          label: const Text('Reply'),
-                        ),
-                    ],
-                  ),
-                ),
-
-                // Replies List
-                StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                  stream: postRef
-                      .collection('replies')
-                      .orderBy('createdAt', descending: false)
-                      .snapshots(),
-                  builder: (context, repliesSnapshot) {
-                    if (repliesSnapshot.connectionState ==
-                        ConnectionState.waiting) {
-                      return const ShimmerRepliesList(count: 4);
-                    }
-
-                    final replies = repliesSnapshot.data?.docs ?? [];
-
-                    if (replies.isEmpty) {
-                      return const Padding(
-                        padding: EdgeInsets.all(32),
-                        child: Text(
-                          'No replies yet',
-                          style: TextStyle(color: Colors.grey),
-                        ),
+            return SingleChildScrollView(
+              child: Column(
+                children: [
+                  // Main Post
+                  AnimatedBuilder(
+                    animation: _highlightAnimation,
+                    builder: (context, child) {
+                      return Container(
+                        color: _highlightedItemId == widget.postId
+                            ? _highlightAnimation.value
+                            : Colors.transparent,
+                        child: _buildPostCard(post, postRef, uid),
                       );
-                    }
+                    },
+                  ),
 
-                    return ListView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemCount: replies.length,
-                      itemBuilder: (context, index) {
-                        final reply = replies[index];
-                        final data = reply.data();
-                        final quotedUserId = data['quotedUserId'] as String?;
-                        final quotedReplyId = data['quotedReplyId'] as String?;
-                        return AnimatedBuilder(
-                          animation: _highlightAnimation,
-                          builder: (context, child) {
-                            return Container(
-                              color: _highlightedItemId == reply.id
-                                  ? _highlightAnimation.value
-                                  : Colors.transparent,
-                              child: ReplyTile(
-                                data: data,
-                                isChild: quotedReplyId != null,
-                                quotedUserId: quotedUserId,
-                                replyId: reply.id,
-                                replyRef: postRef
-                                    .collection('replies')
-                                    .doc(reply.id),
-                                onReply: (uid, preview, parentReplyId) =>
-                                    _openRepliesSheetTo(uid, preview),
-                                canReply: _canReply,
-                              ),
-                            );
-                          },
+                  Divider(
+                    thickness: 8,
+                    color: Theme.of(context).dividerColor.withOpacity(0.06),
+                  ),
+
+                  // Replies Section
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        const Text(
+                          'Replies',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const Spacer(),
+                        if (_canReply)
+                          TextButton.icon(
+                            onPressed: () => _openRepliesSheet(),
+                            icon: const Icon(Icons.reply, size: 18),
+                            label: const Text('Reply'),
+                          ),
+                      ],
+                    ),
+                  ),
+
+                  // Replies List
+                  StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                    stream: postRef
+                        .collection('replies')
+                        .orderBy('createdAt', descending: false)
+                        .snapshots(),
+                    builder: (context, repliesSnapshot) {
+                      if (repliesSnapshot.connectionState ==
+                          ConnectionState.waiting) {
+                        return const ShimmerRepliesList(count: 4);
+                      }
+
+                      final replies = repliesSnapshot.data?.docs ?? [];
+
+                      if (replies.isEmpty) {
+                        return const Padding(
+                          padding: EdgeInsets.all(32),
+                          child: Text(
+                            'No replies yet',
+                            style: TextStyle(color: Colors.grey),
+                          ),
                         );
-                      },
-                    );
-                  },
-                ),
+                      }
 
-                const SizedBox(height: 100), // Bottom padding
-              ],
-            ),
-          );
-        },
+                      return ListView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        itemCount: replies.length,
+                        itemBuilder: (context, index) {
+                          final reply = replies[index];
+                          final data = reply.data();
+                          final quotedUserId = data['quotedUserId'] as String?;
+                          final quotedReplyId =
+                              data['quotedReplyId'] as String?;
+                          return AnimatedBuilder(
+                            animation: _highlightAnimation,
+                            builder: (context, child) {
+                              return Container(
+                                color: _highlightedItemId == reply.id
+                                    ? _highlightAnimation.value
+                                    : Colors.transparent,
+                                child: ReplyTile(
+                                  data: data,
+                                  isChild: quotedReplyId != null,
+                                  quotedUserId: quotedUserId,
+                                  replyId: reply.id,
+                                  replyRef: postRef
+                                      .collection('replies')
+                                      .doc(reply.id),
+                                  onReply: (uid, preview, parentReplyId) =>
+                                      _openRepliesSheetTo(uid, preview),
+                                  canReply: _canReply,
+                                ),
+                              );
+                            },
+                          );
+                        },
+                      );
+                    },
+                  ),
+
+                  const SizedBox(height: 100), // Bottom padding
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }

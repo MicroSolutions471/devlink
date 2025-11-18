@@ -222,18 +222,20 @@ class DashboardDrawer extends StatelessWidget {
                     ),
 
                     const Divider(height: 18, thickness: 0.4),
-                    _tile(
-                      context,
-                      icon: FluentSystemIcons.ic_fluent_sign_out_regular,
-                      text: "Sign Out",
-                      textColor: Colors.red,
-                      iconColor: Colors.red,
-                      onTap: () async {
-                        Navigator.pop(context);
-                        final nav = Navigator.of(context);
-                        await FirebaseAuth.instance.signOut();
-                        nav.pushNamedAndRemoveUntil('/', (route) => false);
-                      },
+                    SafeArea(
+                      child: _tile(
+                        context,
+                        icon: FluentSystemIcons.ic_fluent_sign_out_regular,
+                        text: "Sign Out",
+                        textColor: Colors.red,
+                        iconColor: Colors.red,
+                        onTap: () async {
+                          Navigator.pop(context);
+                          final nav = Navigator.of(context);
+                          await FirebaseAuth.instance.signOut();
+                          nav.pushNamedAndRemoveUntil('/', (route) => false);
+                        },
+                      ),
                     ),
                   ],
                 );

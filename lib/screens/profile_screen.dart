@@ -1,7 +1,8 @@
-// ignore_for_file: avoid_print
+// ignore_for_file: avoid_print, deprecated_member_use
 
 import 'dart:io';
 import 'package:carbon_icons/carbon_icons.dart';
+import 'package:devlink/auth/auth_service.dart';
 import 'package:devlink/utility/customTheme.dart';
 import 'package:devlink/widgets/custom_textfield.dart';
 import 'package:enefty_icons/enefty_icons.dart';
@@ -12,6 +13,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:devlink/services/image_upload_service.dart';
+import 'package:line_awesome_flutter/line_awesome_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -25,10 +28,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _bioController = TextEditingController();
   final _devEmailController = TextEditingController();
   final _devPhoneController = TextEditingController();
+  final _devCodeController = TextEditingController();
   final _picker = ImagePicker();
 
   bool _loading = false;
   bool _isDeveloper = false;
+  bool _wantsDeveloper = false;
   bool _notificationsEnabled = false;
   bool _notifyFromAll = false;
   bool _notifyFromFollowers = false;
@@ -41,12 +46,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _loadUserData();
   }
 
+  void _openWhatsAppForDevCode() {
+    final msg = Uri.encodeComponent(
+      'Salam sir, I am looking for DevCode in DevLink to be registered as a Developer.',
+    );
+    final uri = Uri.parse('https://wa.me/923479483218?text=$msg');
+    launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
   @override
   void dispose() {
     _nameController.dispose();
     _bioController.dispose();
     _devEmailController.dispose();
     _devPhoneController.dispose();
+    _devCodeController.dispose();
     super.dispose();
   }
 
@@ -68,6 +82,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _devEmailController.text = (data['email'] as String?) ?? '';
           _devPhoneController.text = (data['phone'] as String?) ?? '';
           _isDeveloper = data['isDeveloper'] ?? false;
+          _wantsDeveloper = false;
           _notificationsEnabled = data['notificationsEnabled'] ?? false;
           _notifyFromAll = data['notifyFromAll'] ?? false;
           _notifyFromFollowers = data['notifyFromFollowers'] ?? false;
@@ -82,42 +97,88 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _pickImage() async {
     await showModalBottomSheet(
       context: context,
-      builder: (context) => SafeArea(
-        child: Wrap(
-          children: [
-            ListTile(
-              leading: const Icon(Icons.photo_library),
-              title: const Text('Gallery'),
-              onTap: () async {
-                Navigator.pop(context);
-                final image = await _picker.pickImage(
-                  source: ImageSource.gallery,
-                  imageQuality: 85,
-                );
-                if (image != null) {
-                  setState(() {
-                    _selectedImage = File(image.path);
-                  });
-                }
-              },
+      backgroundColor: Colors.transparent,
+      builder: (_) => SafeArea(
+        top: false,
+        child: Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Drag handle
+                Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).dividerColor,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // GALLERY
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: CircleAvatar(
+                    radius: 18,
+                    backgroundColor: Theme.of(
+                      context,
+                    ).colorScheme.surfaceContainerHighest,
+                    child: Icon(
+                      Icons.photo_library,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                  ),
+                  title: const Text('Choose from gallery'),
+                  onTap: () async {
+                    Navigator.pop(context);
+                    final image = await _picker.pickImage(
+                      source: ImageSource.gallery,
+                      imageQuality: 85,
+                    );
+                    if (image != null) {
+                      setState(() {
+                        _selectedImage = File(image.path);
+                      });
+                    }
+                  },
+                ),
+
+                // CAMERA
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: CircleAvatar(
+                    radius: 18,
+                    backgroundColor: Theme.of(
+                      context,
+                    ).colorScheme.surfaceContainerHighest,
+                    child: Icon(
+                      Icons.photo_camera,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                  ),
+                  title: const Text('Take a photo'),
+                  onTap: () async {
+                    Navigator.pop(context);
+                    final image = await _picker.pickImage(
+                      source: ImageSource.camera,
+                      imageQuality: 85,
+                    );
+                    if (image != null) {
+                      setState(() {
+                        _selectedImage = File(image.path);
+                      });
+                    }
+                  },
+                ),
+              ],
             ),
-            ListTile(
-              leading: const Icon(Icons.photo_camera),
-              title: const Text('Camera'),
-              onTap: () async {
-                Navigator.pop(context);
-                final image = await _picker.pickImage(
-                  source: ImageSource.camera,
-                  imageQuality: 85,
-                );
-                if (image != null) {
-                  setState(() {
-                    _selectedImage = File(image.path);
-                  });
-                }
-              },
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -139,15 +200,52 @@ class _ProfileScreenState extends State<ProfileScreen> {
         );
       }
 
+      bool newIsDeveloper = _isDeveloper;
+      final devCode = _devCodeController.text.trim();
+
+      // If user is not yet a developer but wants to become one, validate DevCode
+      if (!newIsDeveloper && _wantsDeveloper) {
+        if (devCode.isEmpty) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Please enter a DevCode.')),
+            );
+          }
+          return;
+        }
+
+        final service = AuthService();
+        final ok = await service.validateDevCode(devCode);
+        if (!ok) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text(
+                  'Invalid DevCode. Please contact superadmin.',
+                ),
+                action: SnackBarAction(
+                  label: 'WhatsApp',
+                  onPressed: _openWhatsAppForDevCode,
+                ),
+              ),
+            );
+          }
+          return;
+        }
+
+        newIsDeveloper = true;
+      }
+
       final updates = {
         'name': _nameController.text.trim(),
         'bio': _bioController.text.trim(),
-        'isDeveloper': _isDeveloper,
+        'isDeveloper': newIsDeveloper,
         'notificationsEnabled': _notificationsEnabled,
         'notifyFromAll': _notifyFromAll,
         'notifyFromFollowers': _notifyFromFollowers,
-        if (_isDeveloper) 'email': _devEmailController.text.trim(),
-        if (_isDeveloper) 'phone': _devPhoneController.text.trim(),
+        if (newIsDeveloper) 'email': _devEmailController.text.trim(),
+        if (newIsDeveloper) 'phone': _devPhoneController.text.trim(),
+        if (newIsDeveloper && devCode.isNotEmpty) 'devCode': devCode,
         if (photoUrl != null) 'photoUrl': photoUrl,
         'updatedAt': FieldValue.serverTimestamp(),
       };
@@ -183,7 +281,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
-        systemNavigationBarColor: scheme,
+        systemNavigationBarColor: isDark ? scheme : Colors.white,
         systemNavigationBarDividerColor: Colors.transparent,
         statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
         systemNavigationBarIconBrightness: isDark
@@ -270,6 +368,80 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     style: TextStyle(color: primaryColor, fontSize: 12),
                   ),
                 ),
+              if (!_isDeveloper) ...[
+                const SizedBox(height: 12),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).cardColor,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Theme.of(context).cardColor),
+                  ),
+                  child: Column(
+                    children: [
+                      ListTile(
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 0,
+                        ),
+                        onTap: () {
+                          setState(() {
+                            _wantsDeveloper = !_wantsDeveloper;
+                          });
+                        },
+                        title: const Text('Register as Developer'),
+                        trailing: Transform.scale(
+                          scale: 0.8,
+                          child: Switch(
+                            activeThumbColor: primaryColor,
+                            value: _wantsDeveloper,
+                            onChanged: (v) => setState(() {
+                              _wantsDeveloper = v;
+                            }),
+                          ),
+                        ),
+                      ),
+                      if (_wantsDeveloper) ...[
+                        const Divider(height: 1),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              CustomTextField(
+                                controller: _devCodeController,
+                                hintText: 'DevCode',
+                                prefixIcon: CarbonIcons.code,
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  Text(
+                                    "Don't have a DevCode?",
+                                    style: TextStyle(
+                                      color: theme.colorScheme.onSurface
+                                          .withOpacity(0.6),
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                  IconButton(
+                                    onPressed: _openWhatsAppForDevCode,
+                                    icon: const Icon(
+                                      LineAwesomeIcons.whatsapp,
+                                      color: Colors.green,
+                                      size: 20,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 24),
               CustomTextField(label: 'Name', controller: _nameController),
               const SizedBox(height: 24),

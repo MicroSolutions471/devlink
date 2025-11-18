@@ -43,11 +43,13 @@ class SinglePostImage extends StatelessWidget {
 class MultiplePostImages extends StatelessWidget {
   final List<String> imageUrls;
   final String postId;
+  final bool enableTap;
 
   const MultiplePostImages({
     super.key,
     required this.imageUrls,
     required this.postId,
+    this.enableTap = true,
   });
 
   @override
@@ -203,14 +205,20 @@ class MultiplePostImages extends StatelessWidget {
       builder: (context) => ClipRRect(
         borderRadius: borderRadius,
         child: InkWell(
-          onTap: () {
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) =>
-                    FullscreenImageViewer(imageUrl: imageUrl, heroTag: heroTag),
-              ),
-            );
-          },
+          onTap: !enableTap
+              ? null
+              : () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => FullscreenImageViewer(
+                        imageUrl: imageUrl,
+                        heroTag: heroTag,
+                        allImageUrls: imageUrls,
+                        initialIndex: index,
+                      ),
+                    ),
+                  );
+                },
           child: Hero(
             tag: heroTag,
             child: Image.network(

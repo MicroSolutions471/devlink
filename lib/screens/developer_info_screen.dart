@@ -2,8 +2,10 @@
 
 import 'package:carbon_icons/carbon_icons.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:devlink/screens/coversation_screen.dart';
 import 'package:fluentui_icons/fluentui_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:devlink/widgets/fullscreen_image_viewer.dart';
 import 'package:devlink/utility/user_colors.dart';
@@ -97,176 +99,264 @@ class DeveloperInfoScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    return Scaffold(
-      appBar: AppBar(
-        elevation: 0,
-        surfaceTintColor: Colors.transparent,
-        title: const Text(
-          "About",
-          style: TextStyle(fontWeight: FontWeight.w600),
-        ),
+    final scheme = theme.colorScheme;
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        systemNavigationBarColor: isDark ? scheme.surface : Colors.white,
+        systemNavigationBarDividerColor: Colors.transparent,
+        statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+        systemNavigationBarIconBrightness: isDark
+            ? Brightness.light
+            : Brightness.dark,
+        systemNavigationBarContrastEnforced: false,
       ),
+      child: Scaffold(
+        appBar: AppBar(
+          elevation: 0,
+          surfaceTintColor: Colors.transparent,
+          title: const Text(
+            "About",
+            style: TextStyle(fontWeight: FontWeight.w600),
+          ),
+        ),
 
-      body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-        stream: FirebaseFirestore.instance
-            .collection('users')
-            .doc(userId)
-            .snapshots(),
-        builder: (context, snap) {
-          final d = snap.data?.data();
-          final name =
-              (d?['name'] ?? d?['displayName'] ?? initialName ?? 'Username')
-                  as String;
-          final photo = (d?['photoUrl'] ?? d?['avatar'] ?? initialPhoto);
-          final followers = (d?['followersCount'] ?? 0) as int;
-          final bio = (d?['bio'] ?? '') as String;
-          final email = (d?['email'] ?? '') as String;
-          final phone = (d?['phone'] ?? '') as String;
+        body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+          stream: FirebaseFirestore.instance
+              .collection('users')
+              .doc(userId)
+              .snapshots(),
+          builder: (context, snap) {
+            final d = snap.data?.data();
+            final name =
+                (d?['name'] ?? d?['displayName'] ?? initialName ?? 'Username')
+                    as String;
+            final photo = (d?['photoUrl'] ?? d?['avatar'] ?? initialPhoto);
+            final followers = (d?['followersCount'] ?? 0) as int;
+            final bio = (d?['bio'] ?? '') as String;
+            final email = (d?['email'] ?? '') as String;
+            final phone = (d?['phone'] ?? '') as String;
+            final isDeveloper = (d?['isDeveloper'] as bool?) ?? false;
 
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // -------- Profile Header --------
-                Row(
-                  children: [
-                    Hero(
-                      tag: 'dev-avatar-$userId',
-                      child: Material(
-                        type: MaterialType.transparency,
-                        child: photo != null
-                            ? GestureDetector(
-                                onTap: () {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => FullscreenImageViewer(
-                                        imageUrl: photo,
-                                        heroTag: 'dev-avatar-$userId',
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // -------- Profile Header --------
+                  Row(
+                    children: [
+                      Hero(
+                        tag: 'dev-avatar-$userId',
+                        child: Material(
+                          type: MaterialType.transparency,
+                          child: photo != null
+                              ? GestureDetector(
+                                  onTap: () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) => FullscreenImageViewer(
+                                          imageUrl: photo,
+                                          heroTag: 'dev-avatar-$userId',
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  child: Stack(
+                                    clipBehavior: Clip.none,
+                                    children: [
+                                      CircleAvatar(
+                                        radius: 42,
+                                        backgroundColor:
+                                            UserColors.getBackgroundColorForUser(
+                                              userId,
+                                            ),
+                                        backgroundImage: NetworkImage(photo),
+                                      ),
+                                      if (isDeveloper)
+                                        Positioned(
+                                          bottom: -4,
+                                          right: -4,
+                                          child: Container(
+                                            padding: const EdgeInsets.all(1),
+                                            decoration: BoxDecoration(
+                                              color: theme.colorScheme.surface,
+                                              shape: BoxShape.circle,
+                                            ),
+                                            child: const Icon(
+                                              Icons.verified,
+                                              color: Colors.green,
+                                              size: 16,
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                )
+                              : Stack(
+                                  clipBehavior: Clip.none,
+                                  children: [
+                                    CircleAvatar(
+                                      radius: 42,
+                                      backgroundColor:
+                                          UserColors.getBackgroundColorForUser(
+                                            userId,
+                                          ),
+                                      child: Icon(
+                                        FluentSystemIcons
+                                            .ic_fluent_person_filled,
+                                        size: 48,
+                                        color: UserColors.getIconColorForUser(
+                                          userId,
+                                        ),
                                       ),
                                     ),
-                                  );
-                                },
-                                child: CircleAvatar(
-                                  radius: 42,
-                                  backgroundColor:
-                                      UserColors.getBackgroundColorForUser(
-                                        userId,
+                                    if (isDeveloper)
+                                      Positioned(
+                                        bottom: -4,
+                                        right: -4,
+                                        child: Container(
+                                          padding: const EdgeInsets.all(1),
+                                          decoration: BoxDecoration(
+                                            color: theme.colorScheme.surface,
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: const Icon(
+                                            Icons.verified,
+                                            color: Colors.green,
+                                            size: 16,
+                                          ),
+                                        ),
                                       ),
-                                  backgroundImage: NetworkImage(photo),
+                                  ],
                                 ),
-                              )
-                            : CircleAvatar(
-                                radius: 42,
-                                backgroundColor:
-                                    UserColors.getBackgroundColorForUser(
-                                      userId,
-                                    ),
-                                child: Icon(
-                                  FluentSystemIcons.ic_fluent_person_filled,
-                                  size: 48,
-                                  color: UserColors.getIconColorForUser(userId),
-                                ),
+                        ),
+                      ),
+                      const SizedBox(width: 20),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              name,
+                              style: theme.textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.w700,
                               ),
+                            ),
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                Text(
+                                  "${formatCount(followers)} followers",
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: theme.colorScheme.onSurface
+                                        .withOpacity(0.7),
+                                  ),
+                                ),
+                                const Spacer(),
+                                FollowButton(
+                                  targetUserId: userId,
+                                  initialFollowers: followers,
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // -------- Bio --------
+                  if (bio.isNotEmpty) ...[
+                    Text(
+                      bio,
+                      style: theme.textTheme.bodyMedium?.copyWith(height: 1.4),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+
+                  // -------- Contact --------
+                  if (email.isNotEmpty || phone.isNotEmpty) ...[
+                    const Text(
+                      "Contact",
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                    const SizedBox(width: 20),
-                    Expanded(
+                    const SizedBox(height: 12),
+
+                    Container(
+                      decoration: BoxDecoration(
+                        color: isDark ? theme.cardColor : Colors.white,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: isDark
+                              ? theme.dividerColor.withOpacity(0.6)
+                              : Colors.grey.shade300,
+                          width: 0.6,
+                        ),
+                      ),
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            name,
-                            style: theme.textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.w700,
+                          if (email.isNotEmpty)
+                            _contactTile(
+                              context,
+                              icon: CarbonIcons.email,
+                              label: email,
+                              onTap: () => _launchEmail(context, email),
                             ),
-                          ),
-                          const SizedBox(height: 6),
-                          Row(
-                            children: [
-                              Text(
-                                "${formatCount(followers)} followers",
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: theme.colorScheme.onSurface
-                                      .withOpacity(0.7),
-                                ),
-                              ),
-                              const Spacer(),
-                              FollowButton(
-                                targetUserId: userId,
-                                initialFollowers: followers,
-                              ),
-                            ],
-                          ),
+
+                          if (email.isNotEmpty && phone.isNotEmpty)
+                            Divider(
+                              height: 0,
+                              color: isDark
+                                  ? theme.dividerColor
+                                  : Colors.grey.shade300,
+                            ),
+
+                          if (phone.isNotEmpty)
+                            _contactTile(
+                              context,
+                              icon: CarbonIcons.phone,
+                              label: phone,
+                              onTap: () => _launchWhatsApp(context, phone),
+                            ),
                         ],
                       ),
                     ),
                   ],
-                ),
-
-                const SizedBox(height: 24),
-
-                // -------- Bio --------
-                if (bio.isNotEmpty) ...[
-                  Text(
-                    bio,
-                    style: theme.textTheme.bodyMedium?.copyWith(height: 1.4),
-                  ),
-                  const SizedBox(height: 24),
                 ],
-
-                // -------- Contact --------
-                if (email.isNotEmpty || phone.isNotEmpty) ...[
-                  const Text(
-                    "Contact",
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+              ),
+            );
+          },
+        ),
+        bottomNavigationBar: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: OutlinedButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (BuildContext context) {
+                      return CoversationScreen(
+                        peerUserId: userId,
+                        peerName: initialName,
+                        peerPhoto: initialPhoto,
+                      );
+                    },
                   ),
-                  const SizedBox(height: 12),
-
-                  Container(
-                    decoration: BoxDecoration(
-                      color: isDark ? theme.cardColor : Colors.white,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: isDark
-                            ? theme.dividerColor.withOpacity(0.6)
-                            : Colors.grey.shade300,
-                        width: 0.6,
-                      ),
-                    ),
-                    child: Column(
-                      children: [
-                        if (email.isNotEmpty)
-                          _contactTile(
-                            context,
-                            icon: CarbonIcons.email,
-                            label: email,
-                            onTap: () => _launchEmail(context, email),
-                          ),
-
-                        if (email.isNotEmpty && phone.isNotEmpty)
-                          Divider(
-                            height: 0,
-                            color: isDark
-                                ? theme.dividerColor
-                                : Colors.grey.shade300,
-                          ),
-
-                        if (phone.isNotEmpty)
-                          _contactTile(
-                            context,
-                            icon: CarbonIcons.phone,
-                            label: phone,
-                            onTap: () => _launchWhatsApp(context, phone),
-                          ),
-                      ],
-                    ),
-                  ),
-                ],
-              ],
+                );
+              },
+              label: const Text('Message'),
+              icon: const Icon(FluentSystemIcons.ic_fluent_chat_regular),
             ),
-          );
-        },
+          ),
+        ),
       ),
     );
   }

@@ -330,6 +330,107 @@ class ShimmerUserList extends StatelessWidget {
   }
 }
 
+class ShimmerChatTile extends StatelessWidget {
+  const ShimmerChatTile({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Shimmer.fromColors(
+      baseColor: _baseColor(context),
+      highlightColor: _highlightColor(context),
+      child: Card(
+        elevation: 0,
+        margin: EdgeInsets.zero,
+        color: Theme.of(context).cardColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: const ListTile(
+          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          leading: CircleAvatar(radius: 20),
+          title: SizedBox(height: 12, width: 120),
+          subtitle: SizedBox(height: 10, width: 180),
+          trailing: CircleAvatar(radius: 10),
+        ),
+      ),
+    );
+  }
+}
+
+class ShimmerChatList extends StatelessWidget {
+  final int count;
+
+  const ShimmerChatList({super.key, this.count = 6});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 80),
+      itemCount: count,
+      separatorBuilder: (_, __) => const SizedBox(height: 4),
+      itemBuilder: (_, __) => const ShimmerChatTile(),
+    );
+  }
+}
+
+class ShimmerMessageTile extends StatelessWidget {
+  final bool isMine;
+
+  const ShimmerMessageTile({super.key, required this.isMine});
+
+  @override
+  Widget build(BuildContext context) {
+    final bubbleWidth = MediaQuery.of(context).size.width * 0.65;
+
+    return Shimmer.fromColors(
+      baseColor: _baseColor(context),
+      highlightColor: _highlightColor(context),
+      child: Align(
+        alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
+        child: Container(
+          margin: const EdgeInsets.symmetric(vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          width: bubbleWidth,
+          decoration: BoxDecoration(
+            color: _baseColor(context),
+            borderRadius: BorderRadius.only(
+              topLeft: const Radius.circular(16),
+              topRight: const Radius.circular(16),
+              bottomLeft: Radius.circular(isMine ? 16 : 4),
+              bottomRight: Radius.circular(isMine ? 4 : 16),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _line(context, height: 12, width: bubbleWidth * 0.8),
+              const SizedBox(height: 6),
+              _line(context, height: 12, width: bubbleWidth * 0.6),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class ShimmerConversationList extends StatelessWidget {
+  final int count;
+
+  const ShimmerConversationList({super.key, this.count = 8});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+      itemCount: count,
+      itemBuilder: (context, index) {
+        final isMine = index.isEven;
+        return ShimmerMessageTile(isMine: isMine);
+      },
+    );
+  }
+}
+
 class ShimmerPostDetailCard extends StatelessWidget {
   const ShimmerPostDetailCard({super.key});
 

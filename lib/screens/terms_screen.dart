@@ -36,7 +36,7 @@ class _TermsScreenState extends State<TermsScreen> {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
-        systemNavigationBarColor: scheme.surface,
+        systemNavigationBarColor: isDark ? scheme.surface : Colors.white,
         systemNavigationBarDividerColor: Colors.transparent,
         statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
         systemNavigationBarIconBrightness: isDark

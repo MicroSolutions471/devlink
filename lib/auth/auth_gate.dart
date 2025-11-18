@@ -1,4 +1,4 @@
-import 'package:devlink/screens/dashboard.dart';
+import 'package:devlink/screens/dashbaord.dart';
 import 'package:devlink/screens/splash_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';

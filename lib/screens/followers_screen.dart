@@ -35,7 +35,8 @@ class FollowersScreen extends StatelessWidget {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
-        systemNavigationBarColor: scheme.surface,
+
+        systemNavigationBarColor: isDark ? scheme.surface : Colors.white,
         systemNavigationBarDividerColor: Colors.transparent,
         statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
         systemNavigationBarIconBrightness: isDark
@@ -361,18 +362,42 @@ class _UserTile extends StatelessWidget {
             'User';
         final photo =
             (data['photoUrl'] as String?) ?? (data['avatar'] as String?);
+        final isDeveloper = (data['isDeveloper'] as bool?) ?? false;
+        final theme = Theme.of(context);
         return ListTile(
-          leading: CircleAvatar(
-            backgroundColor: UserColors.getBackgroundColorForUser(
-              userId,
-            ).withValues(alpha: 0.1),
-            backgroundImage: photo != null ? NetworkImage(photo) : null,
-            child: photo == null
-                ? Icon(
-                    FluentSystemIcons.ic_fluent_person_filled,
-                    color: UserColors.getIconColorForUser(userId),
-                  )
-                : null,
+          leading: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              CircleAvatar(
+                backgroundColor: UserColors.getBackgroundColorForUser(
+                  userId,
+                ).withValues(alpha: 0.1),
+                backgroundImage: photo != null ? NetworkImage(photo) : null,
+                child: photo == null
+                    ? Icon(
+                        FluentSystemIcons.ic_fluent_person_filled,
+                        color: UserColors.getIconColorForUser(userId),
+                      )
+                    : null,
+              ),
+              if (isDeveloper)
+                Positioned(
+                  bottom: -4,
+                  right: -4,
+                  child: Container(
+                    padding: const EdgeInsets.all(1),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surface,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.verified,
+                      color: Colors.green,
+                      size: 14,
+                    ),
+                  ),
+                ),
+            ],
           ),
           title: Text(name),
           trailing: showUnfollowButton

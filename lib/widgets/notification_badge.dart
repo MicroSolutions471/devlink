@@ -10,6 +10,7 @@ class NotificationBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: FirebaseFirestore.instance
           .collection('notifications')
@@ -55,7 +56,7 @@ class NotificationBadge extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.all(2),
                   decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.error,
+                    color: Colors.red,
                     borderRadius: BorderRadius.circular(10),
                   ),
                   constraints: const BoxConstraints(
@@ -65,7 +66,9 @@ class NotificationBadge extends StatelessWidget {
                   child: Text(
                     unreadCount > 99 ? '99+' : '$unreadCount',
                     style: TextStyle(
-                      color: Theme.of(context).colorScheme.onError,
+                      color: isDark
+                          ? Colors.white
+                          : Theme.of(context).colorScheme.onError,
                       fontSize: 10,
                       fontWeight: FontWeight.bold,
                     ),
