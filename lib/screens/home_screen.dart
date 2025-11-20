@@ -16,6 +16,7 @@ import 'package:devlink/utility/user_colors.dart';
 import 'package:fluentui_icons/fluentui_icons.dart';
 import 'package:devlink/services/follow_service.dart';
 import 'package:devlink/screens/terms_screen.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:async';
 
 class HomeScreen extends StatefulWidget {
@@ -418,7 +419,7 @@ class _HomeScreenState extends State<HomeScreen> {
               backgroundColor: UserColors.getBackgroundColorForUser(
                 userId,
               ).withValues(alpha: 0.1),
-              backgroundImage: photo != null ? NetworkImage(photo) : null,
+              backgroundImage: photo != null ? CachedNetworkImageProvider(photo) : null,
               child: photo == null
                   ? Icon(
                       FluentSystemIcons.ic_fluent_person_filled,
@@ -538,114 +539,121 @@ class _HomeScreenState extends State<HomeScreen> {
             .toList();
         if (ids.isEmpty) return const SizedBox.shrink();
 
-        return SizedBox(
-          height: 80,
-          child: ListView.separated(
-            padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
-            scrollDirection: Axis.horizontal,
-            itemCount: ids.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 12),
-            itemBuilder: (context, index) {
-              final userId = ids[index];
-              return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                stream: FirebaseFirestore.instance
-                    .collection('users')
-                    .doc(userId)
-                    .snapshots(),
-                builder: (context, userSnap) {
-                  if (!userSnap.hasData) {
-                    return const SizedBox(width: 72);
-                  }
-                  final data = userSnap.data!.data() ?? {};
-                  final name =
-                      (data['name'] as String?) ??
-                      (data['displayName'] as String?) ??
-                      'User';
-                  final photo =
-                      (data['photoUrl'] as String?) ??
-                      (data['avatar'] as String?);
-                  final isDeveloper = (data['isDeveloper'] as bool?) ?? false;
-                  return InkWell(
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => DeveloperInfoScreen(
-                          userId: userId,
-                          initialName: name,
-                          initialPhoto: photo,
-                        ),
-                      ),
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Hero(
-                          tag: 'dev-avatar-$userId',
-                          child: Stack(
-                            clipBehavior: Clip.none,
-                            children: [
-                              CircleAvatar(
-                                radius: 20,
-                                backgroundColor:
-                                    UserColors.getBackgroundColorForUser(
-                                      userId,
-                                    ),
-                                backgroundImage: photo != null
-                                    ? NetworkImage(photo)
-                                    : null,
-                                child: photo == null
-                                    ? Icon(
-                                        FluentSystemIcons
-                                            .ic_fluent_person_filled,
-                                        size: 22,
-                                        color: UserColors.getIconColorForUser(
-                                          userId,
-                                        ),
-                                      )
-                                    : null,
-                              ),
-                              if (isDeveloper)
-                                Positioned(
-                                  bottom: -4,
-                                  right: -4,
-                                  child: Container(
-                                    padding: const EdgeInsets.all(1),
-                                    decoration: BoxDecoration(
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.surface,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: const Icon(
-                                      Icons.verified,
-                                      color: Colors.green,
-                                      size: 14,
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        SizedBox(
-                          width: 72,
-                          child: Text(
-                            name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w500,
+        return Column(
+          children: [
+            SizedBox(
+              height: 80,
+              child: ListView.builder(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+                scrollDirection: Axis.horizontal,
+                itemCount: ids.length,
+
+                itemBuilder: (context, index) {
+                  final userId = ids[index];
+                  return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                    stream: FirebaseFirestore.instance
+                        .collection('users')
+                        .doc(userId)
+                        .snapshots(),
+                    builder: (context, userSnap) {
+                      if (!userSnap.hasData) {
+                        return const SizedBox(width: 72);
+                      }
+                      final data = userSnap.data!.data() ?? {};
+                      final name =
+                          (data['name'] as String?) ??
+                          (data['displayName'] as String?) ??
+                          'User';
+                      final photo =
+                          (data['photoUrl'] as String?) ??
+                          (data['avatar'] as String?);
+                      final isDeveloper =
+                          (data['isDeveloper'] as bool?) ?? false;
+                      return InkWell(
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => DeveloperInfoScreen(
+                              userId: userId,
+                              initialName: name,
+                              initialPhoto: photo,
                             ),
                           ),
                         ),
-                      ],
-                    ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Hero(
+                              tag: 'dev-avatar-$userId',
+                              child: Stack(
+                                clipBehavior: Clip.none,
+                                children: [
+                                  CircleAvatar(
+                                    radius: 16,
+                                    backgroundColor:
+                                        UserColors.getBackgroundColorForUser(
+                                          userId,
+                                        ),
+                                    backgroundImage: photo != null
+                                        ? CachedNetworkImageProvider(photo)
+                                        : null,
+                                    child: photo == null
+                                        ? Icon(
+                                            FluentSystemIcons
+                                                .ic_fluent_person_filled,
+                                            size: 18,
+                                            color:
+                                                UserColors.getIconColorForUser(
+                                                  userId,
+                                                ),
+                                          )
+                                        : null,
+                                  ),
+                                  if (isDeveloper)
+                                    Positioned(
+                                      bottom: -4,
+                                      right: -4,
+                                      child: Container(
+                                        padding: const EdgeInsets.all(1),
+                                        decoration: BoxDecoration(
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.surface,
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(
+                                          Icons.verified,
+                                          color: Colors.green,
+                                          size: 14,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            SizedBox(
+                              width: 72,
+                              child: Text(
+                                name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
                   );
                 },
-              );
-            },
-          ),
+              ),
+            ),
+            Divider(height: 1, thickness: 0.5),
+          ],
         );
       },
     );

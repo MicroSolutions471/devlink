@@ -199,6 +199,7 @@ class _DashboardState extends State<Dashboard> {
           floatingActionButton: safeIndex == 0
               ? (currentUserId == null
                     ? FloatingActionButton(
+                        heroTag: 'dashboard_home_fab',
                         backgroundColor: primaryColor,
                         foregroundColor: Colors.white,
                         shape: const CircleBorder(),
@@ -215,6 +216,7 @@ class _DashboardState extends State<Dashboard> {
                               (snap.data?.data()?['isActive'] as bool?) ?? true;
                           if (!isActive) return const SizedBox.shrink();
                           return FloatingActionButton(
+                            heroTag: 'dashboard_home_fab',
                             backgroundColor: primaryColor,
                             foregroundColor: Colors.white,
                             shape: const CircleBorder(),

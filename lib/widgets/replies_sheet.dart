@@ -72,6 +72,19 @@ class _RepliesSheetState extends State<RepliesSheet> {
     }
   }
 
+  void _insertCodeBlock() {
+    const snippet = '\n```\n\n```';
+    final current = _controller.text;
+    if (current.trim().isEmpty) {
+      _controller.text = snippet.trimLeft();
+    } else {
+      _controller.text = '$current$snippet';
+    }
+    _controller.selection = TextSelection.fromPosition(
+      TextPosition(offset: _controller.text.length),
+    );
+  }
+
   List<Map<String, dynamic>> _threadReplies(
     List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
   ) {
@@ -326,7 +339,9 @@ class _RepliesSheetState extends State<RepliesSheet> {
         alignment: Alignment.bottomCenter,
         child: Container(
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
+            color: isDark
+                ? Theme.of(context).colorScheme.surface
+                : Colors.white,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
           ),
           child: AnimatedPadding(
@@ -600,7 +615,7 @@ class _RepliesSheetState extends State<RepliesSheet> {
                           children: [
                             AnimatedContainer(
                               duration: const Duration(milliseconds: 150),
-                              width: _inputIsTall ? 0 : 96,
+                              width: _inputIsTall ? 0 : 144,
                               child: _inputIsTall
                                   ? const SizedBox.shrink()
                                   : Row(
@@ -616,6 +631,12 @@ class _RepliesSheetState extends State<RepliesSheet> {
                                           onPressed: _sending
                                               ? null
                                               : () => _promptForLink(),
+                                        ),
+                                        IconButton(
+                                          icon: const Icon(Icons.code),
+                                          onPressed: _sending
+                                              ? null
+                                              : _insertCodeBlock,
                                         ),
                                       ],
                                     ),
@@ -688,6 +709,12 @@ class _RepliesSheetState extends State<RepliesSheet> {
                                     onPressed: _sending
                                         ? null
                                         : () => _promptForLink(),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.code),
+                                    onPressed: _sending
+                                        ? null
+                                        : _insertCodeBlock,
                                   ),
                                 ],
                                 IconButton(

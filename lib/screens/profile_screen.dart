@@ -15,6 +15,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:devlink/services/image_upload_service.dart';
 import 'package:line_awesome_flutter/line_awesome_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -318,7 +319,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       backgroundImage: _selectedImage != null
                           ? FileImage(_selectedImage!)
                           : _currentPhotoUrl != null
-                          ? NetworkImage(_currentPhotoUrl!)
+                          ? CachedNetworkImageProvider(_currentPhotoUrl!)
                           : null,
                       child: _selectedImage == null && _currentPhotoUrl == null
                           ? Icon(

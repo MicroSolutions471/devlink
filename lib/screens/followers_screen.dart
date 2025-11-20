@@ -9,6 +9,7 @@ import 'package:devlink/screens/developer_info_screen.dart';
 import 'package:devlink/services/follow_service.dart';
 import 'package:devlink/widgets/shimmers.dart';
 import 'package:flutter/services.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class FollowersScreen extends StatelessWidget {
   const FollowersScreen({super.key});
@@ -372,7 +373,7 @@ class _UserTile extends StatelessWidget {
                 backgroundColor: UserColors.getBackgroundColorForUser(
                   userId,
                 ).withValues(alpha: 0.1),
-                backgroundImage: photo != null ? NetworkImage(photo) : null,
+                backgroundImage: photo != null ? CachedNetworkImageProvider(photo) : null,
                 child: photo == null
                     ? Icon(
                         FluentSystemIcons.ic_fluent_person_filled,

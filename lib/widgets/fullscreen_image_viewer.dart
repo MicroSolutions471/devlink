@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class FullscreenImageViewer extends StatelessWidget {
   final String imageUrl;
@@ -53,7 +54,7 @@ class FullscreenImageViewer extends StatelessWidget {
                     maxScale: 4.0,
                     child: url.contains('assets')
                         ? Image.asset(url, fit: BoxFit.contain)
-                        : Image.network(url, fit: BoxFit.contain),
+                        : CachedNetworkImage(imageUrl: url, fit: BoxFit.contain),
                   );
                 },
               ),

@@ -9,6 +9,9 @@ import 'package:devlink/config/oneSignal_config.dart';
 import 'package:fluentui_icons/fluentui_icons.dart';
 import 'package:devlink/utility/time_helper.dart';
 import 'package:devlink/utility/user_colors.dart';
+import 'package:devlink/utility/code_text_formatter.dart';
+import 'package:devlink/widgets/code_block.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class ReplyTile extends StatefulWidget {
   final Map<String, dynamic> data;
@@ -67,29 +70,21 @@ class _ReplyTileState extends State<ReplyTile> {
     return painter.height > 100.0;
   }
 
-  List<InlineSpan> _buildMentionSpans(String text, TextStyle baseStyle) {
-    final spans = <InlineSpan>[];
-    // Match a mention with up to two words after '@', e.g. '@Micro' or '@Micro Solutions'
-    final regex = RegExp(r'@([A-Za-z]+(?:\s+[A-Za-z]+)?)');
-    int start = 0;
-    for (final m in regex.allMatches(text)) {
-      if (m.start > start) {
-        spans.add(
-          TextSpan(text: text.substring(start, m.start), style: baseStyle),
-        );
-      }
-      spans.add(
-        TextSpan(
-          text: text.substring(m.start, m.end),
-          style: baseStyle.copyWith(color: Colors.green.shade700),
-        ),
-      );
-      start = m.end;
-    }
-    if (start < text.length) {
-      spans.add(TextSpan(text: text.substring(start), style: baseStyle));
-    }
-    return spans;
+  String? _extractFencedCode(String text) {
+    final trimmed = text.trim();
+    final regex = RegExp(r'^```(?:[^\n]*\n)?([\s\S]*?)```$');
+    final match = regex.firstMatch(trimmed);
+    if (match == null) return null;
+    final code = match.group(1) ?? '';
+    return code.trimRight();
+  }
+
+  String? _extractFencedLanguage(String text) {
+    final trimmed = text.trimLeft();
+    final match = RegExp(r'^```([^\n]*)\n').firstMatch(trimmed);
+    final header = match?.group(1)?.trim();
+    if (header == null || header.isEmpty) return null;
+    return header;
   }
 
   @override
@@ -130,38 +125,151 @@ class _ReplyTileState extends State<ReplyTile> {
                 if (text.isNotEmpty)
                   LayoutBuilder(
                     builder: (context, constraints) {
-                      final style = const TextStyle(fontSize: 13.5);
-                      final exceeds = _willExceedHeight(
-                        text,
-                        style,
-                        constraints.maxWidth,
+                      final theme = Theme.of(context);
+                      final baseStyle = const TextStyle(fontSize: 13.5);
+                      final codeStyle = baseStyle.copyWith(
+                        fontFamily: 'monospace',
+                        fontSize: 12,
                       );
+
+                      // If the whole text is a single fenced block, render as a pure CodeBlock
+                      final fencedOnly = _extractFencedCode(text);
+                      Widget? contentWidget;
+                      bool hasCodeBlock = false;
+
+                      if (fencedOnly != null) {
+                        final lang = _extractFencedLanguage(text);
+                        contentWidget = CodeBlock(
+                          code: fencedOnly,
+                          language: lang,
+                        );
+                        hasCodeBlock = true;
+                      } else {
+                        // Check if there is at least one fenced block
+                        final match = RegExp(
+                          r"```([\s\S]*?)```",
+                        ).firstMatch(text);
+                        if (match != null) {
+                          final before = text.substring(0, match.start);
+                          final inner = match.group(1) ?? '';
+                          String? lang;
+                          String codeSection = inner;
+                          final firstBreak = inner.indexOf('\n');
+                          if (firstBreak != -1) {
+                            final firstLine = inner
+                                .substring(0, firstBreak)
+                                .trim();
+                            final rest = inner.substring(firstBreak + 1);
+                            if (firstLine.isNotEmpty &&
+                                !firstLine.contains(' ')) {
+                              lang = firstLine;
+                              codeSection = rest;
+                            }
+                          }
+                          final code = codeSection.trimRight();
+                          final after = text.substring(match.end);
+
+                          final children = <Widget>[];
+
+                          if (before.trim().isNotEmpty) {
+                            children.add(
+                              RichText(
+                                text: TextSpan(
+                                  children: CodeTextFormatter.buildSpans(
+                                    text: before.trimRight(),
+                                    baseStyle: baseStyle,
+                                    mentionColor: Colors.green.shade700,
+                                    codeStyle: codeStyle.copyWith(
+                                      backgroundColor:
+                                          theme.colorScheme.surfaceVariant,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          }
+
+                          if (code.isNotEmpty) {
+                            children.add(CodeBlock(code: code, language: lang));
+                            hasCodeBlock = true;
+                          }
+
+                          if (after.trim().isNotEmpty) {
+                            children.add(
+                              RichText(
+                                text: TextSpan(
+                                  children: CodeTextFormatter.buildSpans(
+                                    text: after.trimLeft(),
+                                    baseStyle: baseStyle,
+                                    mentionColor: Colors.green.shade700,
+                                    codeStyle: codeStyle.copyWith(
+                                      backgroundColor:
+                                          theme.colorScheme.surfaceVariant,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          }
+
+                          contentWidget = Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: children,
+                          );
+                        } else {
+                          // No fenced blocks: use inline/highlighted text rendering
+                          contentWidget = SelectableText.rich(
+                            TextSpan(
+                              children: CodeTextFormatter.buildSpans(
+                                text: text,
+                                baseStyle: baseStyle,
+                                mentionColor: Colors.green.shade700,
+                                codeStyle: codeStyle.copyWith(
+                                  backgroundColor:
+                                      theme.colorScheme.surfaceVariant,
+                                ),
+                              ),
+                            ),
+                          );
+                        }
+                      }
+
+                      // Only check for exceeds if there's no CodeBlock (CodeBlocks should always be fully visible)
+                      final exceeds = hasCodeBlock
+                          ? false
+                          : _willExceedHeight(
+                              text,
+                              baseStyle,
+                              constraints.maxWidth,
+                            );
                       if (exceeds != _exceeds) {
                         WidgetsBinding.instance.addPostFrameCallback((_) {
                           if (mounted) setState(() => _exceeds = exceeds);
                         });
                       }
+
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           AnimatedSize(
                             duration: const Duration(milliseconds: 200),
                             alignment: Alignment.topLeft,
-                            child: ConstrainedBox(
-                              constraints: _expanded
-                                  ? const BoxConstraints()
-                                  : const BoxConstraints(maxHeight: 100),
-                              child: Padding(
-                                padding: const EdgeInsets.only(top: 2),
-                                child: SelectableText.rich(
-                                  TextSpan(
-                                    children: _buildMentionSpans(text, style),
+                            child: hasCodeBlock
+                                ? Padding(
+                                    padding: const EdgeInsets.only(top: 2),
+                                    child: contentWidget,
+                                  )
+                                : ConstrainedBox(
+                                    constraints: _expanded
+                                        ? const BoxConstraints()
+                                        : const BoxConstraints(maxHeight: 100),
+                                    child: Padding(
+                                      padding: const EdgeInsets.only(top: 2),
+                                      child: contentWidget,
+                                    ),
                                   ),
-                                ),
-                              ),
-                            ),
                           ),
-                          if (_exceeds)
+                          if (_exceeds && !hasCodeBlock)
                             Align(
                               alignment: Alignment.center,
                               child: Container(
@@ -403,9 +511,14 @@ class ReplyAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (uid == null) {
-      return const CircleAvatar(
+      return CircleAvatar(
         radius: 10,
-        child: Icon(Icons.person, size: 12),
+        backgroundColor: UserColors.getBackgroundColorForUser(''),
+        child: Icon(
+          FluentSystemIcons.ic_fluent_person_filled,
+          size: 12,
+          color: UserColors.getIconColorForUser(''),
+        ),
       );
     }
 
@@ -424,7 +537,9 @@ class ReplyAvatar extends StatelessWidget {
             CircleAvatar(
               radius: 10,
               backgroundColor: UserColors.getBackgroundColorForUser(uid),
-              backgroundImage: photo != null ? NetworkImage(photo) : null,
+              backgroundImage: photo != null
+                  ? CachedNetworkImageProvider(photo)
+                  : null,
               child: photo == null
                   ? Icon(
                       FluentSystemIcons.ic_fluent_person_filled,

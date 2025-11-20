@@ -11,11 +11,16 @@ import 'package:devlink/widgets/fullscreen_image_viewer.dart';
 import 'package:devlink/widgets/post_image_gallery.dart';
 import 'package:devlink/widgets/shimmers.dart';
 import 'package:devlink/widgets/user_picker_bottom_sheet.dart';
+import 'package:devlink/utility/code_text_formatter.dart';
+import 'package:devlink/widgets/code_block.dart';
+import 'package:devlink/screens/post_detail_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fluentui_icons/fluentui_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class CoversationScreen extends StatefulWidget {
   final String peerUserId;
@@ -59,6 +64,20 @@ class _CoversationScreenState extends State<CoversationScreen> {
   bool get _canDeleteForEveryone {
     if (!_hasSelection || _selectedIsMineMap.isEmpty) return false;
     return _selectedIsMineMap.values.every((v) => v);
+  }
+
+  void _insertCodeBlock() {
+    const snippet =
+        '\n\n```\n// Paste your code snippet here and edit before sending\n```';
+    final current = _controller.text;
+    if (current.trim().isEmpty) {
+      _controller.text = snippet.trimLeft();
+    } else {
+      _controller.text = '$current$snippet';
+    }
+    _controller.selection = TextSelection.fromPosition(
+      TextPosition(offset: _controller.text.length),
+    );
   }
 
   String? get _singleSelectedId =>
@@ -584,7 +603,7 @@ class _CoversationScreenState extends State<CoversationScreen> {
                           backgroundColor: theme.colorScheme.primary
                               .withOpacity(0.1),
                           backgroundImage: widget.peerPhoto != null
-                              ? NetworkImage(widget.peerPhoto!)
+                              ? CachedNetworkImageProvider(widget.peerPhoto!)
                               : null,
                           child: widget.peerPhoto == null
                               ? Icon(
@@ -682,6 +701,7 @@ class _CoversationScreenState extends State<CoversationScreen> {
                             final data = docs[index].data();
                             final senderId = data['senderId'] as String?;
                             final text = (data['text'] as String?) ?? '';
+                            final postId = data['postId'] as String?;
                             final imageUrls =
                                 (data['imageUrls'] as List<dynamic>?)
                                     ?.cast<String>() ??
@@ -779,7 +799,8 @@ class _CoversationScreenState extends State<CoversationScreen> {
                                           mainAxisSize: MainAxisSize.min,
                                           children: [
                                             Icon(
-                                              Icons.forward,
+                                              FluentSystemIcons
+                                                  .ic_fluent_arrow_forward_regular,
                                               size: 14,
                                               color:
                                                   (isMine
@@ -809,13 +830,282 @@ class _CoversationScreenState extends State<CoversationScreen> {
                                         const SizedBox(height: 2),
                                       ],
                                       if (text.isNotEmpty)
-                                        Text(
-                                          text,
-                                          style: TextStyle(
-                                            color: isMine
-                                                ? Colors.white
-                                                : theme.colorScheme.onSurface,
-                                          ),
+                                        Builder(
+                                          builder: (context) {
+                                            // Check if this is a shared post
+                                            if (postId != null &&
+                                                text == '[Shared Post]') {
+                                              return InkWell(
+                                                onTap: () {
+                                                  Navigator.of(context).push(
+                                                    MaterialPageRoute(
+                                                      builder: (_) =>
+                                                          PostDetailScreen(
+                                                            postId: postId,
+                                                          ),
+                                                    ),
+                                                  );
+                                                },
+                                                child: Container(
+                                                  padding: const EdgeInsets.all(
+                                                    12,
+                                                  ),
+                                                  decoration: BoxDecoration(
+                                                    color: isMine
+                                                        ? Colors.white
+                                                              .withOpacity(0.2)
+                                                        : theme
+                                                              .colorScheme
+                                                              .surfaceVariant,
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          8,
+                                                        ),
+                                                    border: Border.all(
+                                                      color: isMine
+                                                          ? Colors.white
+                                                                .withOpacity(
+                                                                  0.3,
+                                                                )
+                                                          : theme
+                                                                .colorScheme
+                                                                .outlineVariant,
+                                                      width: 1,
+                                                    ),
+                                                  ),
+                                                  child: Row(
+                                                    children: [
+                                                      Icon(
+                                                        FluentSystemIcons
+                                                            .ic_fluent_document_regular,
+                                                        size: 20,
+                                                        color: isMine
+                                                            ? Colors.white
+                                                            : theme
+                                                                  .colorScheme
+                                                                  .primary,
+                                                      ),
+                                                      const SizedBox(width: 12),
+                                                      Expanded(
+                                                        child: Column(
+                                                          crossAxisAlignment:
+                                                              CrossAxisAlignment
+                                                                  .start,
+                                                          children: [
+                                                            Text(
+                                                              'Shared Post',
+                                                              style: TextStyle(
+                                                                fontSize: 14,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w600,
+                                                                color: isMine
+                                                                    ? Colors
+                                                                          .white
+                                                                    : theme
+                                                                          .colorScheme
+                                                                          .onSurface,
+                                                              ),
+                                                            ),
+                                                            const SizedBox(
+                                                              height: 2,
+                                                            ),
+                                                            Text(
+                                                              'Tap to view',
+                                                              style: TextStyle(
+                                                                fontSize: 12,
+                                                                color: isMine
+                                                                    ? Colors
+                                                                          .white
+                                                                          .withOpacity(
+                                                                            0.8,
+                                                                          )
+                                                                    : theme
+                                                                          .colorScheme
+                                                                          .onSurface
+                                                                          .withOpacity(
+                                                                            0.7,
+                                                                          ),
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      ),
+                                                      Icon(
+                                                        Icons.arrow_forward_ios,
+                                                        size: 16,
+                                                        color: isMine
+                                                            ? Colors.white
+                                                                  .withOpacity(
+                                                                    0.7,
+                                                                  )
+                                                            : theme
+                                                                  .colorScheme
+                                                                  .onSurface
+                                                                  .withOpacity(
+                                                                    0.7,
+                                                                  ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              );
+                                            }
+
+                                            final baseStyle = TextStyle(
+                                              color: isMine
+                                                  ? Colors.white
+                                                  : theme.colorScheme.onSurface,
+                                            );
+                                            final codeStyle = baseStyle.copyWith(
+                                              fontFamily: 'monospace',
+                                              fontSize: 12,
+                                              backgroundColor:
+                                                  (isMine
+                                                          ? Colors.white
+                                                          : theme
+                                                                .colorScheme
+                                                                .surfaceVariant)
+                                                      .withOpacity(
+                                                        isMine ? 0.08 : 0.4,
+                                                      ),
+                                            );
+
+                                            // If the whole text is a single fenced block, render as a pure CodeBlock
+                                            final fencedOnly =
+                                                _extractFencedCode(text);
+                                            if (fencedOnly != null) {
+                                              final lang =
+                                                  _extractFencedLanguage(text);
+                                              return CodeBlock(
+                                                code: fencedOnly,
+                                                language: lang,
+                                                backgroundColor:
+                                                    isMine && !isDark
+                                                    ? Colors.white
+                                                    : null,
+                                                textColor: isMine && !isDark
+                                                    ? Colors.black87
+                                                    : null,
+                                                borderColor: isMine && !isDark
+                                                    ? Colors.grey.shade300
+                                                    : null,
+                                              );
+                                            }
+
+                                            // Otherwise, if there is at least one fenced block, split text into
+                                            // before / code / after and render the code part as a CodeBlock.
+                                            final match = RegExp(
+                                              r"```([\s\S]*?)```",
+                                            ).firstMatch(text);
+                                            if (match != null) {
+                                              final before = text.substring(
+                                                0,
+                                                match.start,
+                                              );
+                                              final inner =
+                                                  match.group(1) ?? '';
+                                              String? lang;
+                                              String codeSection = inner;
+                                              final firstBreak = inner.indexOf(
+                                                '\n',
+                                              );
+                                              if (firstBreak != -1) {
+                                                final firstLine = inner
+                                                    .substring(0, firstBreak)
+                                                    .trim();
+                                                final rest = inner.substring(
+                                                  firstBreak + 1,
+                                                );
+                                                if (firstLine.isNotEmpty &&
+                                                    !firstLine.contains(' ')) {
+                                                  lang = firstLine;
+                                                  codeSection = rest;
+                                                }
+                                              }
+                                              final code = codeSection
+                                                  .trimRight();
+                                              final after = text.substring(
+                                                match.end,
+                                              );
+
+                                              final children = <Widget>[];
+
+                                              if (before.trim().isNotEmpty) {
+                                                children.add(
+                                                  SelectableText.rich(
+                                                    TextSpan(
+                                                      children:
+                                                          CodeTextFormatter.buildSpans(
+                                                            text: before
+                                                                .trimRight(),
+                                                            baseStyle:
+                                                                baseStyle,
+                                                            codeStyle:
+                                                                codeStyle,
+                                                          ),
+                                                    ),
+                                                  ),
+                                                );
+                                              }
+
+                                              if (code.isNotEmpty) {
+                                                children.add(
+                                                  CodeBlock(
+                                                    code: code,
+                                                    language: lang,
+                                                    backgroundColor:
+                                                        isMine && !isDark
+                                                        ? Colors.white
+                                                        : null,
+                                                    textColor: isMine && !isDark
+                                                        ? Colors.black87
+                                                        : null,
+                                                    borderColor:
+                                                        isMine && !isDark
+                                                        ? Colors.grey.shade300
+                                                        : null,
+                                                  ),
+                                                );
+                                              }
+
+                                              if (after.trim().isNotEmpty) {
+                                                children.add(
+                                                  SelectableText.rich(
+                                                    TextSpan(
+                                                      children:
+                                                          CodeTextFormatter.buildSpans(
+                                                            text: after
+                                                                .trimLeft(),
+                                                            baseStyle:
+                                                                baseStyle,
+                                                            codeStyle:
+                                                                codeStyle,
+                                                          ),
+                                                    ),
+                                                  ),
+                                                );
+                                              }
+
+                                              return Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: children,
+                                              );
+                                            }
+
+                                            // No fenced blocks at all: fall back to inline/highlighted text rendering
+                                            return SelectableText.rich(
+                                              TextSpan(
+                                                children:
+                                                    CodeTextFormatter.buildSpans(
+                                                      text: text,
+                                                      baseStyle: baseStyle,
+                                                      codeStyle: codeStyle,
+                                                    ),
+                                              ),
+                                            );
+                                          },
                                         ),
                                       if (imageUrls.isNotEmpty) ...[
                                         if (text.isNotEmpty)
@@ -840,39 +1130,77 @@ class _CoversationScreenState extends State<CoversationScreen> {
                                           crossAxisAlignment:
                                               CrossAxisAlignment.start,
                                           children: links.map((link) {
-                                            return Container(
-                                              margin: const EdgeInsets.only(
-                                                top: 4,
-                                              ),
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 10,
-                                                    vertical: 4,
-                                                  ),
-                                              decoration: BoxDecoration(
-                                                color: isMine
-                                                    ? Colors.white.withOpacity(
-                                                        0.1,
-                                                      )
-                                                    : theme
-                                                          .colorScheme
-                                                          .surfaceVariant,
-                                                borderRadius:
-                                                    BorderRadius.circular(8),
-                                              ),
-                                              child: Text(
-                                                link,
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: TextStyle(
-                                                  fontSize: 12,
+                                            return InkWell(
+                                              onTap: () async {
+                                                final uri = Uri.parse(link);
+                                                if (await canLaunchUrl(uri)) {
+                                                  await launchUrl(
+                                                    uri,
+                                                    mode: LaunchMode
+                                                        .externalApplication,
+                                                  );
+                                                }
+                                              },
+                                              child: Container(
+                                                margin: const EdgeInsets.only(
+                                                  top: 4,
+                                                ),
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 10,
+                                                      vertical: 4,
+                                                    ),
+                                                decoration: BoxDecoration(
                                                   color: isMine
                                                       ? Colors.white
+                                                            .withOpacity(0.1)
                                                       : theme
                                                             .colorScheme
-                                                            .primary,
-                                                  decoration:
-                                                      TextDecoration.underline,
+                                                            .surfaceVariant,
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                ),
+                                                child: Row(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    Icon(
+                                                      FluentSystemIcons
+                                                          .ic_fluent_link_filled,
+                                                      size: 14,
+                                                      color: isMine
+                                                          ? Colors.white
+                                                          : theme
+                                                                .colorScheme
+                                                                .primary,
+                                                    ),
+                                                    const SizedBox(width: 6),
+                                                    Flexible(
+                                                      child: Text(
+                                                        link,
+                                                        maxLines: 1,
+                                                        overflow: TextOverflow
+                                                            .ellipsis,
+                                                        style: TextStyle(
+                                                          fontSize: 12,
+                                                          color: isMine
+                                                              ? Colors.white
+                                                              : theme
+                                                                    .colorScheme
+                                                                    .primary,
+                                                          decorationColor:
+                                                              isMine
+                                                              ? Colors.white
+                                                              : theme
+                                                                    .colorScheme
+                                                                    .primary,
+                                                          decoration:
+                                                              TextDecoration
+                                                                  .underline,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
                                                 ),
                                               ),
                                             );
@@ -1148,7 +1476,7 @@ class _CoversationScreenState extends State<CoversationScreen> {
                       children: [
                         AnimatedContainer(
                           duration: const Duration(milliseconds: 150),
-                          width: _inputIsTall ? 0 : 96,
+                          width: _inputIsTall ? 0 : 144,
                           child: _inputIsTall
                               ? const SizedBox.shrink()
                               : Row(
@@ -1164,6 +1492,12 @@ class _CoversationScreenState extends State<CoversationScreen> {
                                       onPressed: _sending
                                           ? null
                                           : () => _promptForLink(),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.code),
+                                      onPressed: _sending
+                                          ? null
+                                          : _insertCodeBlock,
                                     ),
                                   ],
                                 ),
@@ -1233,6 +1567,10 @@ class _CoversationScreenState extends State<CoversationScreen> {
                                 onPressed: _sending
                                     ? null
                                     : () => _promptForLink(),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.code),
+                                onPressed: _sending ? null : _insertCodeBlock,
                               ),
                             ],
                             IconButton(
@@ -1343,7 +1681,7 @@ class _CoversationScreenState extends State<CoversationScreen> {
         tag: heroTag,
         child: ClipRRect(
           borderRadius: BorderRadius.circular(8),
-          child: Image.network(url, fit: BoxFit.cover),
+          child: CachedNetworkImage(imageUrl: url, fit: BoxFit.cover),
         ),
       ),
     );
@@ -1505,5 +1843,22 @@ class _CoversationScreenState extends State<CoversationScreen> {
     if (link != null && link.isNotEmpty) {
       setState(() => _pendingLinks.add(link));
     }
+  }
+
+  String? _extractFencedCode(String text) {
+    final trimmed = text.trim();
+    final regex = RegExp(r'^```(?:[^\n]*\n)?([\s\S]*?)```$');
+    final match = regex.firstMatch(trimmed);
+    if (match == null) return null;
+    final code = match.group(1) ?? '';
+    return code.trimRight();
+  }
+
+  String? _extractFencedLanguage(String text) {
+    final trimmed = text.trimLeft();
+    final match = RegExp(r'^```([^\n]*)\n').firstMatch(trimmed);
+    final header = match?.group(1)?.trim();
+    if (header == null || header.isEmpty) return null;
+    return header;
   }
 }

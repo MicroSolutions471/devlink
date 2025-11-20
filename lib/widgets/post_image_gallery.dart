@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:devlink/widgets/fullscreen_image_viewer.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class SinglePostImage extends StatelessWidget {
   final String imageUrl;
@@ -28,8 +29,8 @@ class SinglePostImage extends StatelessWidget {
         },
         child: Hero(
           tag: heroTag,
-          child: Image.network(
-            imageUrl,
+          child: CachedNetworkImage(
+            imageUrl: imageUrl,
             width: double.infinity,
             height: 200,
             fit: BoxFit.cover,
@@ -221,8 +222,8 @@ class MultiplePostImages extends StatelessWidget {
                 },
           child: Hero(
             tag: heroTag,
-            child: Image.network(
-              imageUrl,
+            child: CachedNetworkImage(
+              imageUrl: imageUrl,
               width: double.infinity,
               height: double.infinity,
               fit: BoxFit.cover,

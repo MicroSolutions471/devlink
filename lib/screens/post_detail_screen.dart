@@ -16,6 +16,10 @@ import 'package:devlink/widgets/shimmers.dart';
 import 'package:devlink/widgets/reply_tile.dart';
 import 'package:devlink/utility/number_format.dart';
 import 'package:devlink/services/report_service.dart';
+import 'package:devlink/utility/code_text_formatter.dart';
+import 'package:devlink/widgets/code_block.dart';
+import 'package:devlink/widgets/user_picker_bottom_sheet.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:io';
 import 'dart:convert';
 import 'package:devlink/config/oneSignal_config.dart';
@@ -600,7 +604,7 @@ class _PostDetailScreenState extends State<PostDetailScreen>
                           post.userId,
                         ),
                         backgroundImage: photoUrl != null
-                            ? NetworkImage(photoUrl)
+                            ? CachedNetworkImageProvider(photoUrl)
                             : null,
                         child: photoUrl == null
                             ? Icon(
@@ -630,31 +634,14 @@ class _PostDetailScreenState extends State<PostDetailScreen>
                         ),
                     ],
                   ),
-                  title: Row(
-                    children: [
-                      Text(
-                        name,
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                      if (isDeveloper) ...[
-                        const SizedBox(width: 4),
-                        const Icon(
-                          Icons.verified,
-                          color: Colors.green,
-                          size: 16,
-                        ),
-                      ],
-                    ],
+                  title: Text(
+                    name,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
                   subtitle: Text(
                     autherfollowers > 0
                         ? '${formatCount(autherfollowers)} followers · ${_timeAgo(post.createdAt)}'
                         : _timeAgo(post.createdAt),
-                  ),
-                  trailing: IconButton(
-                    tooltip: 'Report',
-                    icon: const Icon(Icons.flag_outlined, size: 18),
-                    onPressed: () => _showReportSheet(context, widget.postId),
                   ),
                 );
               },
@@ -662,16 +649,104 @@ class _PostDetailScreenState extends State<PostDetailScreen>
 
             // Post content
             if (post.text != null && post.text!.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              RichText(
-                text: TextSpan(
-                  children: _buildHashtagSpans(
-                    post.text!,
-                    theme.textTheme.bodyMedium?.copyWith(fontSize: 16) ??
-                        const TextStyle(fontSize: 16),
-                    Colors.blue,
-                  ),
-                ),
+              Builder(
+                builder: (context) {
+                  final rawText = post.text!;
+                  final baseStyle =
+                      theme.textTheme.bodyMedium?.copyWith(
+                        fontSize: 16,
+                        height: 1.45,
+                      ) ??
+                      const TextStyle(fontSize: 16, height: 1.45);
+                  final codeStyle = baseStyle.copyWith(
+                    fontFamily: 'monospace',
+                    backgroundColor: Theme.of(
+                      context,
+                    ).colorScheme.surfaceVariant.withOpacity(0.1),
+                  );
+
+                  // Pure fenced block -> single CodeBlock
+                  final fencedOnly = _extractFencedCode(rawText);
+                  if (fencedOnly != null) {
+                    final lang = _extractFencedLanguage(rawText);
+                    return CodeBlock(code: fencedOnly, language: lang);
+                  }
+
+                  // Mixed text + fenced code
+                  final match = RegExp(r"```([\s\S]*?)```").firstMatch(rawText);
+                  if (match != null) {
+                    final before = rawText.substring(0, match.start);
+                    final inner = match.group(1) ?? '';
+                    String? lang;
+                    String codeSection = inner;
+                    final firstBreak = inner.indexOf('\n');
+                    if (firstBreak != -1) {
+                      final firstLine = inner.substring(0, firstBreak).trim();
+                      final rest = inner.substring(firstBreak + 1);
+                      if (firstLine.isNotEmpty && !firstLine.contains(' ')) {
+                        lang = firstLine;
+                        codeSection = rest;
+                      }
+                    }
+                    final code = codeSection.trimRight();
+                    final after = rawText.substring(match.end);
+
+                    final children = <Widget>[];
+
+                    if (before.trim().isNotEmpty) {
+                      children.add(
+                        SelectableText.rich(
+                          TextSpan(
+                            children: CodeTextFormatter.buildSpans(
+                              text: before.trimRight(),
+                              baseStyle: baseStyle,
+                              hashtagColor: Colors.blue,
+                              codeStyle: codeStyle,
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+
+                    if (code.isNotEmpty) {
+                      children.add(
+                        CodeBlock(code: code.trim(), language: lang),
+                      );
+                    }
+
+                    if (after.trim().isNotEmpty) {
+                      children.add(
+                        SelectableText.rich(
+                          TextSpan(
+                            children: CodeTextFormatter.buildSpans(
+                              text: after.trimLeft(),
+                              baseStyle: baseStyle,
+                              hashtagColor: Colors.blue,
+                              codeStyle: codeStyle,
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: children,
+                    );
+                  }
+
+                  // No fenced block: normal rich text
+                  return SelectableText.rich(
+                    TextSpan(
+                      children: CodeTextFormatter.buildSpans(
+                        text: rawText,
+                        baseStyle: baseStyle,
+                        hashtagColor: Colors.blue,
+                        codeStyle: codeStyle,
+                      ),
+                    ),
+                  );
+                },
               ),
             ],
 
@@ -694,8 +769,8 @@ class _PostDetailScreenState extends State<PostDetailScreen>
                     },
                     child: Hero(
                       tag: 'post_${post.id}_img',
-                      child: Image.network(
-                        post.imageUrls.first,
+                      child: CachedNetworkImage(
+                        imageUrl: post.imageUrls.first,
                         width: double.infinity,
                         height: 200,
                         fit: BoxFit.cover,
@@ -728,8 +803,8 @@ class _PostDetailScreenState extends State<PostDetailScreen>
                           },
                           child: Hero(
                             tag: heroTag,
-                            child: Image.network(
-                              imgUrl,
+                            child: CachedNetworkImage(
+                              imageUrl: imgUrl,
                               width: 240,
                               height: 160,
                               fit: BoxFit.cover,
@@ -806,6 +881,11 @@ class _PostDetailScreenState extends State<PostDetailScreen>
                           ? FluentSystemIcons.ic_fluent_thumb_like_filled
                           : FluentSystemIcons.ic_fluent_thumb_like_regular,
                     ),
+                    style: IconButton.styleFrom(
+                      padding: EdgeInsets.zero,
+
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
                   ),
                   Text(
                     formatCount(likeCount),
@@ -826,6 +906,10 @@ class _PostDetailScreenState extends State<PostDetailScreen>
                           ? FluentSystemIcons.ic_fluent_thumb_dislike_filled
                           : FluentSystemIcons.ic_fluent_thumb_dislike_regular,
                     ),
+                    style: IconButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
                   ),
                   Text(
                     formatCount(dislikeCount),
@@ -835,13 +919,32 @@ class _PostDetailScreenState extends State<PostDetailScreen>
                     tooltip: 'Report',
                     icon: const Icon(Icons.flag_outlined, size: 18),
                     onPressed: () => _showReportSheet(context, widget.postId),
+                    style: IconButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Share',
+                    icon: Icon(
+                      FluentSystemIcons.ic_fluent_share_regular,
+                      size: 18,
+                    ),
+                    onPressed: () => _sharePost(context, postRef),
+                    style: IconButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
                   ),
                   const Spacer(),
                   if (_canReply)
                     TextButton.icon(
                       onPressed: () => _openRepliesSheet(),
-                      icon: const Icon(Icons.reply, size: 18),
-                      label: Text('Reply (${formatCount(post.replyCount)})'),
+                      icon: const Icon(Icons.reply, size: 14),
+                      label: Text(
+                        'Reply (${formatCount(post.replyCount)})',
+                        style: TextStyle(fontSize: 12),
+                      ),
                     ),
                 ],
               ),
@@ -852,33 +955,95 @@ class _PostDetailScreenState extends State<PostDetailScreen>
     );
   }
 
-  List<InlineSpan> _buildHashtagSpans(
-    String text,
-    TextStyle baseStyle,
-    Color hashtagColor,
-  ) {
-    final spans = <InlineSpan>[];
-    final regex = RegExp(r'(#[\w]+)');
+  String? _extractFencedCode(String text) {
+    final trimmed = text.trim();
+    final regex = RegExp(r'^```(?:[^\n]*\n)?([\s\S]*?)```$');
+    final match = regex.firstMatch(trimmed);
+    if (match == null) return null;
+    final code = match.group(1) ?? '';
+    return code.trimRight();
+  }
 
-    text.splitMapJoin(
-      regex,
-      onMatch: (match) {
-        spans.add(
-          TextSpan(
-            text: match.group(0),
-            style: baseStyle.copyWith(color: hashtagColor),
-          ),
-        );
-        return '';
-      },
-      onNonMatch: (nonMatch) {
-        if (nonMatch.isNotEmpty) {
-          spans.add(TextSpan(text: nonMatch, style: baseStyle));
-        }
-        return '';
-      },
+  String? _extractFencedLanguage(String text) {
+    final trimmed = text.trimLeft();
+    final match = RegExp(r'^```([^\n]*)\n').firstMatch(trimmed);
+    final header = match?.group(1)?.trim();
+    if (header == null || header.isEmpty) return null;
+    return header;
+  }
+
+  Future<void> _sharePost(
+    BuildContext context,
+    DocumentReference postRef,
+  ) async {
+    final result = await showFollowersFollowingPickerBottomSheet(
+      context,
+      actionIcon: FluentSystemIcons.ic_fluent_share_regular,
     );
+    if (result == null) return;
 
-    return spans;
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    if (currentUserId == null) return;
+
+    try {
+      // Get or create conversation
+      final ids = [currentUserId, result.userId]..sort();
+      final pairKey = '${ids[0]}_${ids[1]}';
+
+      final query = await FirebaseFirestore.instance
+          .collection('conversations')
+          .where('pairKey', isEqualTo: pairKey)
+          .limit(1)
+          .get();
+
+      DocumentReference<Map<String, dynamic>> convRef;
+      if (query.docs.isNotEmpty) {
+        convRef = query.docs.first.reference;
+      } else {
+        convRef = FirebaseFirestore.instance.collection('conversations').doc();
+        await convRef.set({
+          'pairKey': pairKey,
+          'participants': ids,
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+          'lastMessageText': '[Shared Post]',
+          'lastMessageAt': FieldValue.serverTimestamp(),
+          'lastSenderId': currentUserId,
+          'unreadCounts': {currentUserId: 0, result.userId: 0},
+        });
+      }
+
+      // Send message with post reference
+      final msgRef = convRef.collection('messages').doc();
+      await msgRef.set({
+        'text': '[Shared Post]',
+        'senderId': currentUserId,
+        'postId': postRef.id,
+        'createdAt': FieldValue.serverTimestamp(),
+        'isRead': false,
+      });
+
+      // Update conversation
+      await convRef.update({
+        'lastMessageText': '[Shared Post]',
+        'lastMessageAt': FieldValue.serverTimestamp(),
+        'lastSenderId': currentUserId,
+        'updatedAt': FieldValue.serverTimestamp(),
+        'unreadCounts.${result.userId}': FieldValue.increment(1),
+        'unreadCounts.$currentUserId': 0,
+      });
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Post shared')));
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to share post: $e')));
+      }
+    }
   }
 }

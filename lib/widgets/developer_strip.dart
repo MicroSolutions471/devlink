@@ -5,6 +5,7 @@ import 'package:fluentui_icons/fluentui_icons.dart';
 import 'package:devlink/screens/developer_info_screen.dart';
 import 'package:devlink/utility/user_colors.dart';
 import 'package:devlink/widgets/shimmers.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class DeveloperStrip extends StatelessWidget {
   const DeveloperStrip({super.key});
@@ -95,7 +96,7 @@ class DeveloperAvatar extends StatelessWidget {
             child: CircleAvatar(
               radius: 24,
               backgroundColor: UserColors.getBackgroundColorForUser(userId),
-              backgroundImage: photoUrl != null ? NetworkImage(photoUrl!) : null,
+              backgroundImage: photoUrl != null ? CachedNetworkImageProvider(photoUrl!) : null,
               child: photoUrl == null
                   ? Icon(
                       FluentSystemIcons.ic_fluent_person_filled,

@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fluentui_icons/fluentui_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:devlink/utility/user_colors.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class PickUserResult {
   final String userId;
@@ -285,7 +286,7 @@ class _PickerUserTile extends StatelessWidget {
           user.id,
         ).withValues(alpha: 0.1),
         backgroundImage: user.photoUrl != null
-            ? NetworkImage(user.photoUrl!)
+            ? CachedNetworkImageProvider(user.photoUrl!)
             : null,
         child: user.photoUrl == null
             ? Icon(

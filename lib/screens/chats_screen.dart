@@ -4,11 +4,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:devlink/screens/coversation_screen.dart';
 import 'package:devlink/utility/customTheme.dart';
 import 'package:devlink/utility/user_colors.dart';
+import 'package:devlink/utility/time_helper.dart';
 import 'package:devlink/widgets/shimmers.dart';
 import 'package:devlink/widgets/user_picker_bottom_sheet.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fluentui_icons/fluentui_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class ChatsScreen extends StatefulWidget {
   final bool isSearchActive;
@@ -155,9 +157,14 @@ class _ChatsScreenState extends State<ChatsScreen> {
           return Stack(
             children: [
               ListView.separated(
-                padding: const EdgeInsets.fromLTRB(12, 4, 12, 80),
+                padding: const EdgeInsets.only(bottom: 80),
                 itemCount: docs.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 4),
+                separatorBuilder: (_, __) => Divider(
+                  height: 1,
+                  thickness: 0.5,
+                  indent: 64,
+                  color: theme.dividerColor.withOpacity(0.3),
+                ),
                 itemBuilder: (context, index) {
                   final doc = docs[index];
                   final data = doc.data();
@@ -181,6 +188,10 @@ class _ChatsScreenState extends State<ChatsScreen> {
 
                   final lastMessage =
                       (data['lastMessageText'] as String?) ?? '';
+                  final lastMessageAt = data['lastMessageAt'] as Timestamp?;
+                  final updatedAt = data['updatedAt'] as Timestamp?;
+                  final lastSenderId = data['lastSenderId'] as String?;
+                  final isLastMessageFromMe = lastSenderId == currentUserId;
 
                   final unreadCounts =
                       (data['unreadCounts'] as Map<String, dynamic>? ??
@@ -189,6 +200,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
                       (unreadCounts[currentUserId] as int?) ?? 0;
 
                   final isSelected = _selectedConversations.containsKey(doc.id);
+                  final timestamp = lastMessageAt ?? updatedAt;
 
                   return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                     stream: FirebaseFirestore.instance
@@ -215,121 +227,164 @@ class _ChatsScreenState extends State<ChatsScreen> {
                         }
                       }
 
-                      return Container(
-                        key: ValueKey(doc.id),
-                        color: isSelected
-                            ? theme.colorScheme.primary.withOpacity(
-                                isDark ? 0.18 : 0.2,
-                              )
-                            : Colors.transparent,
-                        child: Card(
-                          color: Colors.transparent,
-                          elevation: 0,
-                          margin: EdgeInsets.zero,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: ListTile(
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 4,
-                            ),
-                            leading: Stack(
-                              clipBehavior: Clip.none,
-                              children: [
-                                CircleAvatar(
-                                  radius: 20,
-                                  backgroundColor:
-                                      UserColors.getBackgroundColorForUser(
-                                        peerId,
-                                      ),
-                                  backgroundImage: photo != null
-                                      ? NetworkImage(photo)
-                                      : null,
-                                  child: photo == null
-                                      ? Icon(
-                                          FluentSystemIcons
-                                              .ic_fluent_person_filled,
-                                          color: UserColors.getIconColorForUser(
-                                            peerId,
-                                          ),
-                                        )
-                                      : null,
+                      return InkWell(
+                        onTap: () {
+                          if (_hasChatSelection) {
+                            _toggleConversationSelection(doc.id, doc.reference);
+                          } else {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => CoversationScreen(
+                                  peerUserId: peerId,
+                                  peerName: name,
+                                  peerPhoto: photo,
                                 ),
-                                if (isDeveloper)
-                                  Positioned(
-                                    bottom: -4,
-                                    right: -4,
-                                    child: Container(
-                                      padding: const EdgeInsets.all(1),
-                                      decoration: BoxDecoration(
-                                        color: theme.colorScheme.surface,
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: const Icon(
-                                        Icons.verified,
-                                        color: Colors.green,
-                                        size: 14,
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                            title: Text(
-                              name,
-                              style: TextStyle(
-                                fontWeight: unreadForCurrent > 0
-                                    ? FontWeight.w600
-                                    : FontWeight.w500,
                               ),
-                            ),
-                            subtitle: Text(
-                              lastMessage.isNotEmpty
-                                  ? lastMessage
-                                  : 'Tap to chat',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            trailing: unreadForCurrent > 0
-                                ? CircleAvatar(
-                                    radius: 10,
-                                    backgroundColor: primaryColor,
-                                    child: Text(
-                                      unreadForCurrent > 99
-                                          ? '99+'
-                                          : unreadForCurrent.toString(),
-                                      style: const TextStyle(
-                                        fontSize: 10,
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold,
+                            );
+                          }
+                        },
+                        onLongPress: () {
+                          _toggleConversationSelection(doc.id, doc.reference);
+                        },
+                        child: Container(
+                          color: isSelected
+                              ? theme.colorScheme.primary.withOpacity(
+                                  isDark ? 0.18 : 0.08,
+                                )
+                              : Colors.transparent,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                          child: Row(
+                            children: [
+                              Stack(
+                                clipBehavior: Clip.none,
+                                children: [
+                                  CircleAvatar(
+                                    radius: 18,
+                                    backgroundColor:
+                                        UserColors.getBackgroundColorForUser(
+                                          peerId,
+                                        ),
+                                    backgroundImage: photo != null
+                                        ? CachedNetworkImageProvider(photo)
+                                        : null,
+                                    child: photo == null
+                                        ? Icon(
+                                            FluentSystemIcons
+                                                .ic_fluent_person_filled,
+                                            size: 20,
+                                            color:
+                                                UserColors.getIconColorForUser(
+                                                  peerId,
+                                                ),
+                                          )
+                                        : null,
+                                  ),
+                                  if (isDeveloper)
+                                    Positioned(
+                                      bottom: -2,
+                                      right: -2,
+                                      child: Container(
+                                        padding: const EdgeInsets.all(1.5),
+                                        decoration: BoxDecoration(
+                                          color: theme.colorScheme.surface,
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(
+                                          Icons.verified,
+                                          color: Colors.green,
+                                          size: 16,
+                                        ),
                                       ),
                                     ),
-                                  )
-                                : null,
-                            onTap: () {
-                              if (_hasChatSelection) {
-                                _toggleConversationSelection(
-                                  doc.id,
-                                  doc.reference,
-                                );
-                              } else {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (_) => CoversationScreen(
-                                      peerUserId: peerId,
-                                      peerName: name,
-                                      peerPhoto: photo,
+                                ],
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            name,
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: unreadForCurrent > 0
+                                                  ? FontWeight.w600
+                                                  : FontWeight.w500,
+                                              color:
+                                                  theme.colorScheme.onSurface,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        if (timestamp != null) ...[
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            TimeHelper.chatListTime(timestamp),
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: theme.colorScheme.onSurface
+                                                  .withOpacity(0.6),
+                                            ),
+                                          ),
+                                        ],
+                                      ],
                                     ),
-                                  ),
-                                );
-                              }
-                            },
-                            onLongPress: () {
-                              _toggleConversationSelection(
-                                doc.id,
-                                doc.reference,
-                              );
-                            },
+
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            lastMessage.isNotEmpty
+                                                ? (isLastMessageFromMe
+                                                      ? 'You: $lastMessage'
+                                                      : lastMessage)
+                                                : 'Tap to chat',
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              color: theme.colorScheme.onSurface
+                                                  .withOpacity(0.7),
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        if (unreadForCurrent > 0) ...[
+                                          const SizedBox(width: 8),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                              vertical: 2,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: primaryColor,
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                            ),
+                                            child: Text(
+                                              unreadForCurrent > 99
+                                                  ? '99+'
+                                                  : unreadForCurrent.toString(),
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       );
@@ -357,21 +412,38 @@ class _ChatsScreenState extends State<ChatsScreen> {
                         ),
                       ),
                       const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Text('${_selectedConversations.length} Selected'),
-                          FloatingActionButton(
-                            heroTag: 'chats_cancel_fab',
-                            mini: true,
-                            elevation: 0,
-                            backgroundColor: Colors.transparent,
-                            onPressed: _clearChatSelection,
-                            child: Icon(
-                              Icons.close,
-                              color: theme.colorScheme.onSurface,
+                      Container(
+                        padding: EdgeInsets.only(left: 12),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          boxShadow: [
+                            BoxShadow(
+                              color: isDark
+                                  ? Colors.grey.shade900
+                                  : Colors.grey.shade300,
+
+                              spreadRadius: 2,
+                              blurRadius: 7,
                             ),
-                          ),
-                        ],
+                          ],
+                          color: theme.cardColor,
+                        ),
+                        child: Row(
+                          children: [
+                            Text('${_selectedConversations.length} Selected'),
+                            FloatingActionButton(
+                              heroTag: 'chats_cancel_fab',
+                              mini: true,
+                              elevation: 0,
+                              backgroundColor: Colors.transparent,
+                              onPressed: _clearChatSelection,
+                              child: Icon(
+                                Icons.close,
+                                color: theme.colorScheme.onSurface,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
@@ -382,6 +454,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
       ),
       floatingActionButton: !_hasChatSelection
           ? FloatingActionButton(
+              heroTag: 'chats_main_fab',
               shape: const CircleBorder(),
               backgroundColor: primaryColor,
               foregroundColor: Colors.white,

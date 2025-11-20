@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 
 import 'package:url_launcher/url_launcher.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class StatusListener {
   // Cache to store shown status IDs for the current session
@@ -105,10 +106,10 @@ class StatusListener {
                                 return GestureDetector(
                                   onTapDown: (_) => isAutoScrolling = false,
                                   onTapUp: (_) => isAutoScrolling = true,
-                                  child: Image.network(
-                                    statusData['images'][index],
+                                  child: CachedNetworkImage(
+                                    imageUrl: statusData['images'][index],
                                     fit: BoxFit.cover,
-                                    errorBuilder: (context, error, stackTrace) {
+                                    errorWidget: (context, url, error) {
                                       debugPrint('Error loading image: $error');
                                       return Container(
                                         color: Colors.grey.shade200,
@@ -160,7 +161,9 @@ class StatusListener {
                             padding: const EdgeInsets.only(bottom: 8),
                             child: Text(
                               statusData['title'],
-                              style: titleStyle(),
+                              style: titleStyle().copyWith(
+                                color: scheme.onSurface.withOpacity(0.8),
+                              ),
                             ),
                           ),
                         if (statusData['body']?.isNotEmpty ?? false)
@@ -243,7 +246,10 @@ class StatusListener {
     if (statusData['images'] != null &&
         statusData['images'] is List &&
         (statusData['images'] as List).isNotEmpty) {
-      precacheImage(NetworkImage((statusData['images'] as List)[0]), context)
+      precacheImage(
+            CachedNetworkImageProvider((statusData['images'] as List)[0]),
+            context,
+          )
           .then((_) {
             _showDialog(context, statusData);
           })

@@ -68,7 +68,7 @@ class MyApp extends StatelessWidget {
 }
 
 Future<void> _loadOneSignalKeyFromRemote() async {
-  debugPrint("🔄 Starting OneSignal key fetch from Firestore...");
+  debugPrint("🔄 Starting OneSignal key and ID fetch from Firestore...");
 
   try {
     final doc = await FirebaseFirestore.instance
@@ -89,29 +89,27 @@ Future<void> _loadOneSignalKeyFromRemote() async {
 
     debugPrint("📄 Raw Firestore data: $data");
 
-    final value = data['apiKey'];
-
-    if (value == null) {
-      debugPrint("❌ 'apiKey' field is missing in Firestore document.");
-      return;
+    // --- Process apiKey ---
+    final apiKey = data['apiKey'];
+    if (apiKey == null || apiKey is! String || apiKey.isEmpty) {
+      debugPrint("❌ 'apiKey' field is invalid or missing.");
+    } else {
+      OneSignalConfig.appKey = apiKey;
+      debugPrint("✅ OneSignal API key loaded successfully.");
     }
 
-    if (value is! String) {
-      debugPrint(
-        "❌ 'apiKey' is not a String. Found type: ${value.runtimeType}",
-      );
-      return;
+    // --- Process appId (NEW) ---
+    final appId = data['appId'];
+    if (appId == null || appId is! String || appId.isEmpty) {
+      debugPrint("❌ 'appId' field is invalid or missing.");
+    } else {
+      OneSignalConfig.appId = appId; // Assuming OneSignalConfig.appId exists
+      debugPrint("✅ OneSignal App ID loaded successfully.");
     }
 
-    if (value.isEmpty) {
-      debugPrint("❌ 'apiKey' is an empty string.");
-      return;
-    }
-
-    OneSignalConfig.appKey = value;
-    debugPrint("✅ OneSignal API key loaded successfully: $value");
+    debugPrint("🎉 Both OneSignal API key and App ID loaded successfully.");
   } catch (e, stack) {
-    debugPrint("🔥 Error loading OneSignal key: $e");
+    debugPrint("🔥 Error loading OneSignal keys: $e");
     debugPrint("📌 Stack trace: $stack");
   }
 }

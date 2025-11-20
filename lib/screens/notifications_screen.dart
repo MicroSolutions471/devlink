@@ -12,6 +12,7 @@ import 'package:devlink/screens/developer_info_screen.dart';
 import 'package:devlink/utility/user_colors.dart';
 import 'package:devlink/widgets/shimmers.dart';
 import 'package:flutter/services.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -522,7 +523,7 @@ class _NotificationRowState extends State<_NotificationRow>
                           fromUserId,
                         ),
                         backgroundImage: photoUrl != null
-                            ? NetworkImage(photoUrl)
+                            ? CachedNetworkImageProvider(photoUrl)
                             : null,
                         child: photoUrl == null
                             ? Icon(

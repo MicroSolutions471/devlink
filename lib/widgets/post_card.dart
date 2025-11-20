@@ -11,12 +11,16 @@ import 'package:devlink/models/post.dart';
 import 'package:devlink/utility/time_helper.dart';
 import 'package:devlink/utility/user_colors.dart';
 import 'package:devlink/utility/reaction_helper.dart';
+import 'package:devlink/utility/code_text_formatter.dart';
 import 'package:devlink/widgets/post_image_gallery.dart';
+import 'package:devlink/widgets/code_block.dart';
 import 'package:devlink/screens/post_detail_screen.dart';
 import 'package:devlink/widgets/fullscreen_image_viewer.dart';
 import 'package:devlink/services/follow_service.dart';
 import 'package:devlink/utility/number_format.dart';
 import 'package:devlink/services/report_service.dart';
+import 'package:devlink/widgets/user_picker_bottom_sheet.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class PostCard extends StatelessWidget {
   final Post post;
@@ -77,15 +81,101 @@ class PostCard extends StatelessWidget {
             if (post.text != null && post.text!.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
-                child: RichText(
-                  text: TextSpan(
-                    children: _buildHashtagSpans(
-                      post.text!,
-                      theme.textTheme.bodyMedium ??
-                          const TextStyle(fontSize: 14),
-                      Colors.blue,
-                    ),
-                  ),
+                child: Builder(
+                  builder: (context) {
+                    final rawText = post.text!;
+                    final baseStyle =
+                        (theme.textTheme.bodyMedium ??
+                                const TextStyle(fontSize: 14))
+                            .copyWith(height: 1.4);
+                    final codeStyle = baseStyle.copyWith(
+                      fontFamily: 'monospace',
+                      fontSize: 12,
+                    );
+
+                    // If the whole post is a single fenced block, render as a pure CodeBlock
+                    final fencedOnly = _extractFencedCode(rawText);
+                    if (fencedOnly != null) {
+                      final lang = _extractFencedLanguage(rawText);
+                      return CodeBlock(code: fencedOnly, language: lang);
+                    }
+
+                    // Otherwise, if there is at least one fenced block, split text into
+                    // before / code / after and render the code part as a CodeBlock.
+                    final match = RegExp(
+                      r"```([\s\S]*?)```",
+                    ).firstMatch(rawText);
+                    if (match != null) {
+                      final before = rawText.substring(0, match.start);
+                      final inner = match.group(1) ?? '';
+                      String? lang;
+                      String codeSection = inner;
+                      final firstBreak = inner.indexOf('\n');
+                      if (firstBreak != -1) {
+                        final firstLine = inner.substring(0, firstBreak).trim();
+                        final rest = inner.substring(firstBreak + 1);
+                        if (firstLine.isNotEmpty && !firstLine.contains(' ')) {
+                          lang = firstLine;
+                          codeSection = rest;
+                        }
+                      }
+                      final code = codeSection.trimRight();
+                      final after = rawText.substring(match.end);
+
+                      final children = <Widget>[];
+
+                      if (before.trim().isNotEmpty) {
+                        children.add(
+                          SelectableText.rich(
+                            TextSpan(
+                              children: CodeTextFormatter.buildSpans(
+                                text: before.trimRight(),
+                                baseStyle: baseStyle,
+                                hashtagColor: Colors.blue,
+                                codeStyle: codeStyle,
+                              ),
+                            ),
+                          ),
+                        );
+                      }
+
+                      if (code.isNotEmpty) {
+                        children.add(CodeBlock(code: code, language: lang));
+                      }
+
+                      if (after.trim().isNotEmpty) {
+                        children.add(
+                          SelectableText.rich(
+                            TextSpan(
+                              children: CodeTextFormatter.buildSpans(
+                                text: after.trimLeft(),
+                                baseStyle: baseStyle,
+                                hashtagColor: Colors.blue,
+                                codeStyle: codeStyle,
+                              ),
+                            ),
+                          ),
+                        );
+                      }
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: children,
+                      );
+                    }
+
+                    // No fenced blocks at all: fall back to inline/highlighted text rendering
+                    return SelectableText.rich(
+                      TextSpan(
+                        children: CodeTextFormatter.buildSpans(
+                          text: rawText,
+                          baseStyle: baseStyle,
+                          hashtagColor: Colors.blue,
+                          codeStyle: codeStyle,
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ),
 
@@ -131,6 +221,7 @@ class PostCard extends StatelessWidget {
                 replyCount: post.replyCount,
                 onReply: onReplyTap,
                 canReply: canReply,
+                onShare: () => _sharePost(context, postRef),
               ),
             ),
           ],
@@ -139,34 +230,96 @@ class PostCard extends StatelessWidget {
     );
   }
 
-  List<InlineSpan> _buildHashtagSpans(
-    String text,
-    TextStyle baseStyle,
-    Color hashtagColor,
-  ) {
-    final spans = <InlineSpan>[];
-    final regex = RegExp(r'(#[\w]+)');
+  String? _extractFencedCode(String text) {
+    final trimmed = text.trim();
+    final regex = RegExp(r'^```(?:[^\n]*\n)?([\s\S]*?)```$');
+    final match = regex.firstMatch(trimmed);
+    if (match == null) return null;
+    final code = match.group(1) ?? '';
+    return code.trimRight();
+  }
 
-    text.splitMapJoin(
-      regex,
-      onMatch: (match) {
-        spans.add(
-          TextSpan(
-            text: match.group(0),
-            style: baseStyle.copyWith(color: hashtagColor),
-          ),
-        );
-        return '';
-      },
-      onNonMatch: (nonMatch) {
-        if (nonMatch.isNotEmpty) {
-          spans.add(TextSpan(text: nonMatch, style: baseStyle));
-        }
-        return '';
-      },
+  String? _extractFencedLanguage(String text) {
+    final trimmed = text.trimLeft();
+    final match = RegExp(r'^```([^\n]*)\n').firstMatch(trimmed);
+    final header = match?.group(1)?.trim();
+    if (header == null || header.isEmpty) return null;
+    return header;
+  }
+
+  Future<void> _sharePost(
+    BuildContext context,
+    DocumentReference postRef,
+  ) async {
+    final result = await showFollowersFollowingPickerBottomSheet(
+      context,
+      actionIcon: FluentSystemIcons.ic_fluent_share_regular,
     );
+    if (result == null) return;
 
-    return spans;
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    if (currentUserId == null) return;
+
+    try {
+      // Get or create conversation
+      final ids = [currentUserId, result.userId]..sort();
+      final pairKey = '${ids[0]}_${ids[1]}';
+
+      final query = await FirebaseFirestore.instance
+          .collection('conversations')
+          .where('pairKey', isEqualTo: pairKey)
+          .limit(1)
+          .get();
+
+      DocumentReference<Map<String, dynamic>> convRef;
+      if (query.docs.isNotEmpty) {
+        convRef = query.docs.first.reference;
+      } else {
+        convRef = FirebaseFirestore.instance.collection('conversations').doc();
+        await convRef.set({
+          'pairKey': pairKey,
+          'participants': ids,
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+          'lastMessageText': '[Shared Post]',
+          'lastMessageAt': FieldValue.serverTimestamp(),
+          'lastSenderId': currentUserId,
+          'unreadCounts': {currentUserId: 0, result.userId: 0},
+        });
+      }
+
+      // Send message with post reference
+      final msgRef = convRef.collection('messages').doc();
+      await msgRef.set({
+        'text': '[Shared Post]',
+        'senderId': currentUserId,
+        'postId': postRef.id,
+        'createdAt': FieldValue.serverTimestamp(),
+        'isRead': false,
+      });
+
+      // Update conversation
+      await convRef.update({
+        'lastMessageText': '[Shared Post]',
+        'lastMessageAt': FieldValue.serverTimestamp(),
+        'lastSenderId': currentUserId,
+        'updatedAt': FieldValue.serverTimestamp(),
+        'unreadCounts.${result.userId}': FieldValue.increment(1),
+        'unreadCounts.$currentUserId': 0,
+      });
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Post shared')));
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to share post: $e')));
+      }
+    }
   }
 }
 
@@ -313,6 +466,7 @@ class PostReactionsOptimistic extends StatefulWidget {
   final int replyCount;
   final VoidCallback onReply;
   final bool canReply;
+  final VoidCallback? onShare;
 
   const PostReactionsOptimistic({
     super.key,
@@ -326,6 +480,7 @@ class PostReactionsOptimistic extends StatefulWidget {
     required this.replyCount,
     required this.onReply,
     this.canReply = true,
+    this.onShare,
   });
 
   @override
@@ -433,6 +588,10 @@ class _PostReactionsOptimisticState extends State<PostReactionsOptimistic> {
             size: 16,
             color: liked ? scheme.primary : scheme.onSurface,
           ),
+          style: IconButton.styleFrom(
+            padding: EdgeInsets.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
         ),
         Text(formatCount(likeCount), style: TextStyle(color: scheme.onSurface)),
         const SizedBox(width: 8),
@@ -445,6 +604,10 @@ class _PostReactionsOptimisticState extends State<PostReactionsOptimistic> {
             size: 16,
             color: disliked ? scheme.primary : scheme.onSurface,
           ),
+          style: IconButton.styleFrom(
+            padding: EdgeInsets.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
         ),
         Text(
           formatCount(dislikeCount),
@@ -455,6 +618,16 @@ class _PostReactionsOptimisticState extends State<PostReactionsOptimistic> {
           icon: const Icon(Icons.flag_outlined, size: 18),
           onPressed: () => _showReportSheet(context, widget.postRef.id),
         ),
+        if (widget.onShare != null)
+          IconButton(
+            tooltip: 'Share',
+            icon: Icon(FluentSystemIcons.ic_fluent_share_regular, size: 18),
+            onPressed: widget.onShare,
+            style: IconButton.styleFrom(
+              padding: EdgeInsets.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ),
         const Spacer(),
         if (widget.canReply)
           TextButton.icon(
@@ -545,7 +718,7 @@ class PostHeader extends StatelessWidget {
                         post.userId,
                       ),
                       backgroundImage: photo != null
-                          ? NetworkImage(photo)
+                          ? CachedNetworkImageProvider(photo)
                           : null,
                       child: photo == null
                           ? Icon(
@@ -687,7 +860,10 @@ class _PostFollowButtonState extends State<PostFollowButton> {
                 strokeWidth: 2,
               ),
             )
-          : Text(following ? 'Following' : 'Follow'),
+          : Text(
+              following ? 'Following' : 'Follow',
+              style: TextStyle(fontSize: 12),
+            ),
     );
   }
 }

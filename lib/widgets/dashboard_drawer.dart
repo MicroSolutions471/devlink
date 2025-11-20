@@ -13,6 +13,7 @@ import 'package:flutter/services.dart';
 // removed unused imports
 import 'package:provider/provider.dart';
 import 'package:devlink/providers/theme_provider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class DashboardDrawer extends StatelessWidget {
   final String? currentUserId;
@@ -263,7 +264,7 @@ class DashboardDrawer extends StatelessWidget {
           CircleAvatar(
             radius: 24,
             backgroundColor: theme.colorScheme.surface,
-            backgroundImage: photoUrl != null ? NetworkImage(photoUrl) : null,
+            backgroundImage: photoUrl != null ? CachedNetworkImageProvider(photoUrl) : null,
             child: photoUrl == null
                 ? Icon(
                     FluentSystemIcons.ic_fluent_person_filled,

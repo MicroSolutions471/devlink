@@ -12,6 +12,9 @@ import 'package:devlink/utility/time_helper.dart';
 import 'package:devlink/widgets/post_image_gallery.dart';
 import 'package:fluentui_icons/fluentui_icons.dart';
 import 'package:devlink/screens/terms_screen.dart';
+import 'package:devlink/utility/code_text_formatter.dart';
+import 'package:devlink/widgets/code_block.dart';
+import 'package:devlink/widgets/user_picker_bottom_sheet.dart';
 
 class MyPostsScreen extends StatefulWidget {
   const MyPostsScreen({super.key});
@@ -404,6 +407,7 @@ class _MyPostsScreenState extends State<MyPostsScreen> {
                   (snap.data?.data()?['isActive'] as bool?) ?? true;
               if (!isActive) return const SizedBox.shrink();
               return FloatingActionButton(
+                heroTag: 'my_posts_fab',
                 backgroundColor: primaryColor,
                 foregroundColor: Theme.of(context).colorScheme.onPrimary,
                 shape: const CircleBorder(),
@@ -452,6 +456,9 @@ class _MyPostsScreenState extends State<MyPostsScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadiusGeometry.circular(12),
+        ),
         title: const Text('Delete Post'),
         content: const Text(
           'Are you sure you want to delete this post? This action cannot be undone.',
@@ -565,6 +572,18 @@ class MyPostCard extends StatelessWidget {
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
                       ),
+                    IconButton(
+                      onPressed: () => _sharePost(context, postRef),
+                      icon: Icon(
+                        FluentSystemIcons.ic_fluent_share_regular,
+                        size: 16,
+                      ),
+                      style: IconButton.styleFrom(
+                        padding: const EdgeInsets.all(8),
+                        minimumSize: const Size(32, 32),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                    ),
                   ],
                 ),
               ],
@@ -573,23 +592,104 @@ class MyPostCard extends StatelessWidget {
             // Post content
             if (post.text?.isNotEmpty == true) ...[
               const SizedBox(height: 12),
-              RichText(
-                text: TextSpan(
-                  children: _buildHashtagSpans(
-                    post.text!,
-                    Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontSize: 15,
-                          height: 1.4,
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ) ??
-                        TextStyle(
-                          fontSize: 15,
-                          height: 1.4,
-                          color: Theme.of(context).colorScheme.onSurface,
+              Builder(
+                builder: (context) {
+                  final rawText = post.text!;
+                  final baseStyle =
+                      Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontSize: 15,
+                        height: 1.4,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ) ??
+                      TextStyle(
+                        fontSize: 15,
+                        height: 1.4,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      );
+                  final codeStyle = baseStyle.copyWith(
+                    fontFamily: 'monospace',
+                    backgroundColor: Theme.of(
+                      context,
+                    ).colorScheme.surfaceVariant,
+                  );
+
+                  final fencedOnly = _extractFencedCode(rawText);
+                  if (fencedOnly != null) {
+                    final lang = _extractFencedLanguage(rawText);
+                    return CodeBlock(code: fencedOnly, language: lang);
+                  }
+
+                  final match = RegExp(r"```([\s\S]*?)```").firstMatch(rawText);
+                  if (match != null) {
+                    final before = rawText.substring(0, match.start);
+                    final inner = match.group(1) ?? '';
+                    String? lang;
+                    String codeSection = inner;
+                    final firstBreak = inner.indexOf('\n');
+                    if (firstBreak != -1) {
+                      final firstLine = inner.substring(0, firstBreak).trim();
+                      final rest = inner.substring(firstBreak + 1);
+                      if (firstLine.isNotEmpty && !firstLine.contains(' ')) {
+                        lang = firstLine;
+                        codeSection = rest;
+                      }
+                    }
+                    final code = codeSection.trimRight();
+                    final after = rawText.substring(match.end);
+
+                    final children = <Widget>[];
+
+                    if (before.trim().isNotEmpty) {
+                      children.add(
+                        SelectableText.rich(
+                          TextSpan(
+                            children: CodeTextFormatter.buildSpans(
+                              text: before.trimRight(),
+                              baseStyle: baseStyle,
+                              hashtagColor: Colors.blue,
+                              codeStyle: codeStyle,
+                            ),
+                          ),
                         ),
-                    Colors.blue,
-                  ),
-                ),
+                      );
+                    }
+
+                    if (code.isNotEmpty) {
+                      children.add(CodeBlock(code: code, language: lang));
+                    }
+
+                    if (after.trim().isNotEmpty) {
+                      children.add(
+                        SelectableText.rich(
+                          TextSpan(
+                            children: CodeTextFormatter.buildSpans(
+                              text: after.trimLeft(),
+                              baseStyle: baseStyle,
+                              hashtagColor: Colors.blue,
+                              codeStyle: codeStyle,
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: children,
+                    );
+                  }
+
+                  return SelectableText.rich(
+                    TextSpan(
+                      children: CodeTextFormatter.buildSpans(
+                        text: rawText,
+                        baseStyle: baseStyle,
+                        hashtagColor: Colors.blue,
+                        codeStyle: codeStyle,
+                      ),
+                    ),
+                  );
+                },
               ),
             ],
 
@@ -627,33 +727,95 @@ class MyPostCard extends StatelessWidget {
     );
   }
 
-  List<InlineSpan> _buildHashtagSpans(
-    String text,
-    TextStyle baseStyle,
-    Color hashtagColor,
-  ) {
-    final spans = <InlineSpan>[];
-    final regex = RegExp(r'(#[\w]+)');
+  String? _extractFencedCode(String text) {
+    final trimmed = text.trim();
+    final regex = RegExp(r'^```(?:[^\n]*\n)?([\s\S]*?)```$');
+    final match = regex.firstMatch(trimmed);
+    if (match == null) return null;
+    final code = match.group(1) ?? '';
+    return code.trimRight();
+  }
 
-    text.splitMapJoin(
-      regex,
-      onMatch: (match) {
-        spans.add(
-          TextSpan(
-            text: match.group(0),
-            style: baseStyle.copyWith(color: hashtagColor),
-          ),
-        );
-        return '';
-      },
-      onNonMatch: (nonMatch) {
-        if (nonMatch.isNotEmpty) {
-          spans.add(TextSpan(text: nonMatch, style: baseStyle));
-        }
-        return '';
-      },
+  String? _extractFencedLanguage(String text) {
+    final trimmed = text.trimLeft();
+    final match = RegExp(r'^```([^\n]*)\n').firstMatch(trimmed);
+    final header = match?.group(1)?.trim();
+    if (header == null || header.isEmpty) return null;
+    return header;
+  }
+
+  Future<void> _sharePost(
+    BuildContext context,
+    DocumentReference postRef,
+  ) async {
+    final result = await showFollowersFollowingPickerBottomSheet(
+      context,
+      actionIcon: FluentSystemIcons.ic_fluent_share_regular,
     );
+    if (result == null) return;
 
-    return spans;
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    if (currentUserId == null) return;
+
+    try {
+      // Get or create conversation
+      final ids = [currentUserId, result.userId]..sort();
+      final pairKey = '${ids[0]}_${ids[1]}';
+
+      final query = await FirebaseFirestore.instance
+          .collection('conversations')
+          .where('pairKey', isEqualTo: pairKey)
+          .limit(1)
+          .get();
+
+      DocumentReference<Map<String, dynamic>> convRef;
+      if (query.docs.isNotEmpty) {
+        convRef = query.docs.first.reference;
+      } else {
+        convRef = FirebaseFirestore.instance.collection('conversations').doc();
+        await convRef.set({
+          'pairKey': pairKey,
+          'participants': ids,
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+          'lastMessageText': '[Shared Post]',
+          'lastMessageAt': FieldValue.serverTimestamp(),
+          'lastSenderId': currentUserId,
+          'unreadCounts': {currentUserId: 0, result.userId: 0},
+        });
+      }
+
+      // Send message with post reference
+      final msgRef = convRef.collection('messages').doc();
+      await msgRef.set({
+        'text': '[Shared Post]',
+        'senderId': currentUserId,
+        'postId': postRef.id,
+        'createdAt': FieldValue.serverTimestamp(),
+        'isRead': false,
+      });
+
+      // Update conversation
+      await convRef.update({
+        'lastMessageText': '[Shared Post]',
+        'lastMessageAt': FieldValue.serverTimestamp(),
+        'lastSenderId': currentUserId,
+        'updatedAt': FieldValue.serverTimestamp(),
+        'unreadCounts.${result.userId}': FieldValue.increment(1),
+        'unreadCounts.$currentUserId': 0,
+      });
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Post shared')));
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to share post: $e')));
+      }
+    }
   }
 }

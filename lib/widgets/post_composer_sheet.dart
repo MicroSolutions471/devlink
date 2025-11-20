@@ -7,11 +7,14 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:devlink/models/post.dart';
 import 'package:devlink/services/image_upload_service.dart';
 import 'package:devlink/utility/customTheme.dart';
+import 'package:devlink/utility/user_colors.dart';
 import 'package:devlink/widgets/custom_textfield.dart';
 import 'package:devlink/widgets/loading.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:fluentui_icons/fluentui_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:devlink/config/oneSignal_config.dart';
 
 class PostComposerSheet extends StatefulWidget {
@@ -83,9 +86,15 @@ class _QuotedReplyBox extends StatelessWidget {
                   (u?['photoUrl'] as String?) ?? (u?['avatar'] as String?);
               return CircleAvatar(
                 radius: 14,
-                backgroundImage: photo != null ? NetworkImage(photo) : null,
+                backgroundImage: photo != null ? CachedNetworkImageProvider(photo) : null,
                 child: photo == null
-                    ? const Icon(Icons.person, size: 16)
+                    ? Icon(
+                        FluentSystemIcons.ic_fluent_person_filled,
+                        size: 16,
+                        color: UserColors.getIconColorForUser(
+                          FirebaseAuth.instance.currentUser?.uid ?? '',
+                        ),
+                      )
                     : null,
               );
             },
@@ -218,6 +227,19 @@ class _PostComposerSheetState extends State<PostComposerSheet> {
     if (diff.inHours < 24) return '${diff.inHours}h ago';
     if (diff.inDays < 7) return '${diff.inDays}d ago';
     return '${dt.year}/${dt.month.toString().padLeft(2, '0')}/${dt.day.toString().padLeft(2, '0')}';
+  }
+
+  void _insertCodeBlock() {
+    const snippet = '```\n\n\n```';
+    final current = _text.text;
+    if (current.trim().isEmpty) {
+      _text.text = snippet.trimLeft();
+    } else {
+      _text.text = '$current$snippet';
+    }
+    _text.selection = TextSelection.fromPosition(
+      TextPosition(offset: _text.text.length),
+    );
   }
 
   @override
@@ -683,10 +705,16 @@ class _PostComposerSheetState extends State<PostComposerSheet> {
                                   CircleAvatar(
                                     radius: 14,
                                     backgroundImage: photo != null
-                                        ? NetworkImage(photo)
+                                        ? CachedNetworkImageProvider(photo)
                                         : null,
                                     child: photo == null
-                                        ? const Icon(Icons.person, size: 16)
+                                        ? Icon(
+                                            FluentSystemIcons.ic_fluent_person_filled,
+                                            size: 14,
+                                            color: UserColors.getIconColorForUser(
+                                              (widget.quoted?['userId'] as String?) ?? '',
+                                            ),
+                                          )
                                         : null,
                                   ),
                                   const SizedBox(width: 8),
@@ -718,8 +746,8 @@ class _PostComposerSheetState extends State<PostComposerSheet> {
                                 const SizedBox(height: 6),
                                 ClipRRect(
                                   borderRadius: BorderRadius.circular(6),
-                                  child: Image.network(
-                                    firstImg,
+                                  child: CachedNetworkImage(
+                                    imageUrl: firstImg,
                                     height: 80,
                                     width: double.infinity,
                                     fit: BoxFit.cover,
@@ -761,8 +789,8 @@ class _PostComposerSheetState extends State<PostComposerSheet> {
                             children: [
                               ClipRRect(
                                 borderRadius: BorderRadius.circular(8),
-                                child: Image.network(
-                                  imageUrl,
+                                child: CachedNetworkImage(
+                                  imageUrl: imageUrl,
                                   width: 160,
                                   height: 110,
                                   fit: BoxFit.cover,
@@ -887,6 +915,15 @@ class _PostComposerSheetState extends State<PostComposerSheet> {
                     IconButton(
                       onPressed: _addLink,
                       icon: const Icon(Icons.link),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(0, 38),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      onPressed: _insertCodeBlock,
+                      icon: const Icon(Icons.code),
                       style: OutlinedButton.styleFrom(
                         minimumSize: const Size(0, 38),
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,

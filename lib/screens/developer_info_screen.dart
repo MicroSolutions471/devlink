@@ -12,6 +12,7 @@ import 'package:devlink/utility/user_colors.dart';
 import 'package:devlink/services/follow_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:devlink/utility/number_format.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class DeveloperInfoScreen extends StatelessWidget {
   final String userId;
@@ -172,7 +173,7 @@ class DeveloperInfoScreen extends StatelessWidget {
                                             UserColors.getBackgroundColorForUser(
                                               userId,
                                             ),
-                                        backgroundImage: NetworkImage(photo),
+                                        backgroundImage: CachedNetworkImageProvider(photo),
                                       ),
                                       if (isDeveloper)
                                         Positioned(
