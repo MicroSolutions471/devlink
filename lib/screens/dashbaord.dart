@@ -2,6 +2,7 @@
 
 import 'package:devlink/screens/chats_screen.dart';
 import 'package:devlink/screens/home_screen.dart';
+import 'package:fluentui_icons/fluentui_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -11,6 +12,7 @@ import 'package:flutter/services.dart';
 import 'package:devlink/widgets/custom_bottom_nav.dart';
 import 'package:devlink/widgets/notification_badge.dart';
 import 'package:devlink/widgets/post_composer_sheet.dart';
+import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 
 class Dashboard extends StatefulWidget {
   const Dashboard({super.key});
@@ -59,12 +61,21 @@ class _DashboardState extends State<Dashboard> {
     super.dispose();
   }
 
-  Future<void> _openComposerSheet() async {
+  Future<void> _openPostComposer() async {
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => const PostComposerSheet(),
+    );
+  }
+
+  Future<void> _openPollComposer() async {
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => const PostComposerSheet(isPoll: true),
     );
   }
 
@@ -203,7 +214,7 @@ class _DashboardState extends State<Dashboard> {
                         backgroundColor: primaryColor,
                         foregroundColor: Colors.white,
                         shape: const CircleBorder(),
-                        onPressed: _openComposerSheet,
+                        onPressed: _openPostComposer,
                         child: const Icon(Icons.add),
                       )
                     : StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
@@ -215,13 +226,44 @@ class _DashboardState extends State<Dashboard> {
                           final isActive =
                               (snap.data?.data()?['isActive'] as bool?) ?? true;
                           if (!isActive) return const SizedBox.shrink();
-                          return FloatingActionButton(
-                            heroTag: 'dashboard_home_fab',
+                          return SpeedDial(
+                            icon: Icons.add,
+                            activeIcon: Icons.close,
+                            iconTheme: const IconThemeData(size: 22.0),
                             backgroundColor: primaryColor,
+                            overlayOpacity: 0,
                             foregroundColor: Colors.white,
-                            shape: const CircleBorder(),
-                            onPressed: _openComposerSheet,
-                            child: const Icon(Icons.add),
+                            overlayColor: Colors.transparent,
+                            elevation: 0,
+                            direction: SpeedDialDirection.up,
+                            spacing: 0,
+                            children: [
+                              SpeedDialChild(
+                                //   heroTag: 'dashboard_home_fab',
+                                backgroundColor: primaryColor,
+                                foregroundColor: Colors.white,
+                                shape: const CircleBorder(),
+                                onTap: _openPostComposer,
+                                child: Icon(
+                                  FluentSystemIcons.ic_fluent_edit_regular,
+                                ),
+
+                                label: 'Post',
+                                labelBackgroundColor: primaryColor,
+                                labelStyle: TextStyle(color: Colors.white),
+                              ),
+                              SpeedDialChild(
+                                //   heroTag: 'dashboard_home_fab',
+                                backgroundColor: primaryColor,
+                                foregroundColor: Colors.white,
+                                shape: const CircleBorder(),
+                                onTap: _openPollComposer,
+                                child: const Icon(Icons.poll),
+                                label: 'Poll',
+                                labelBackgroundColor: primaryColor,
+                                labelStyle: TextStyle(color: Colors.white),
+                              ),
+                            ],
                           );
                         },
                       ))

@@ -8,6 +8,7 @@ import 'package:devlink/config/oneSignal_config.dart';
 import 'package:devlink/services/image_upload_service.dart';
 import 'package:devlink/utility/customTheme.dart';
 import 'package:devlink/widgets/fullscreen_image_viewer.dart';
+import 'package:devlink/widgets/loading.dart';
 import 'package:devlink/widgets/post_image_gallery.dart';
 import 'package:devlink/widgets/shimmers.dart';
 import 'package:devlink/widgets/user_picker_bottom_sheet.dart';
@@ -18,6 +19,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fluentui_icons/fluentui_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -67,8 +69,7 @@ class _CoversationScreenState extends State<CoversationScreen> {
   }
 
   void _insertCodeBlock() {
-    const snippet =
-        '\n\n```\n// Paste your code snippet here and edit before sending\n```';
+    const snippet = '```\n\n\n```';
     final current = _controller.text;
     if (current.trim().isEmpty) {
       _controller.text = snippet.trimLeft();
@@ -108,7 +109,14 @@ class _CoversationScreenState extends State<CoversationScreen> {
           .get();
 
       if (query.docs.isNotEmpty) {
-        return query.docs.first.reference;
+        final ref = query.docs.first.reference;
+        try {
+          await ref.update({
+            'deletedFor': FieldValue.arrayRemove([currentUserId, peerUserId]),
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        } catch (_) {}
+        return ref;
       }
 
       final ref = FirebaseFirestore.instance.collection('conversations').doc();
@@ -121,6 +129,7 @@ class _CoversationScreenState extends State<CoversationScreen> {
         'lastMessageAt': FieldValue.serverTimestamp(),
         'lastSenderId': currentUserId,
         'unreadCounts': {currentUserId: 0, peerUserId: 0},
+        'deletedFor': const <String>[],
       });
       return ref;
     } catch (e, st) {
@@ -214,8 +223,15 @@ class _CoversationScreenState extends State<CoversationScreen> {
           .get();
 
       if (query.docs.isNotEmpty) {
+        final ref = query.docs.first.reference;
+        try {
+          await ref.update({
+            'deletedFor': FieldValue.arrayRemove([currentUserId]),
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        } catch (_) {}
         setState(() {
-          _conversationRef = query.docs.first.reference;
+          _conversationRef = ref;
         });
         return;
       }
@@ -230,6 +246,7 @@ class _CoversationScreenState extends State<CoversationScreen> {
         'lastMessageAt': FieldValue.serverTimestamp(),
         'lastSenderId': currentUserId,
         'unreadCounts': {currentUserId: 0, widget.peerUserId: 0},
+        'deletedFor': const <String>[],
       });
       setState(() {
         _conversationRef = ref;
@@ -453,6 +470,10 @@ class _CoversationScreenState extends State<CoversationScreen> {
         'updatedAt': FieldValue.serverTimestamp(),
         'unreadCounts.${widget.peerUserId}': FieldValue.increment(1),
         'unreadCounts.$currentUserId': 0,
+        'deletedFor': FieldValue.arrayRemove([
+          currentUserId,
+          widget.peerUserId,
+        ]),
       });
 
       await _notifyOnMessage(messagePreview);
@@ -1472,38 +1493,73 @@ class _CoversationScreenState extends State<CoversationScreen> {
                         ),
                       ),
                     Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        AnimatedContainer(
-                          duration: const Duration(milliseconds: 150),
-                          width: _inputIsTall ? 0 : 144,
-                          child: _inputIsTall
-                              ? const SizedBox.shrink()
-                              : Row(
-                                  children: [
-                                    IconButton(
-                                      icon: const Icon(Icons.image),
-                                      onPressed: _sending
-                                          ? null
-                                          : () => _pickImageSource(),
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(Icons.link),
-                                      onPressed: _sending
-                                          ? null
-                                          : () => _promptForLink(),
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(Icons.code),
-                                      onPressed: _sending
-                                          ? null
-                                          : _insertCodeBlock,
-                                    ),
-                                  ],
-                                ),
+                        SpeedDial(
+                          icon: Icons.add,
+                          activeIcon: Icons.close,
+                          buttonSize: const Size(40, 40),
+                          iconTheme: const IconThemeData(size: 22.0),
+                          backgroundColor: primaryColor,
+                          overlayOpacity: 0,
+                          foregroundColor: Colors.white,
+                          overlayColor: Colors.transparent,
+                          elevation: 0,
+                          direction: SpeedDialDirection.up,
+                          spacing: 0,
+                          spaceBetweenChildren: 8,
+                          childrenButtonSize: const Size(40, 40),
+
+                          children: [
+                            SpeedDialChild(
+                              //   heroTag: 'dashboard_home_fab',
+                              backgroundColor: primaryColor,
+                              foregroundColor: Colors.white,
+                              shape: const CircleBorder(),
+                              onTap: _pickImageSource,
+                              child: Icon(
+                                FluentSystemIcons.ic_fluent_image_add_regular,
+                                size: 15,
+                              ),
+
+                              label: 'Image',
+                              labelBackgroundColor: primaryColor,
+                              labelStyle: TextStyle(color: Colors.white),
+                            ),
+                            SpeedDialChild(
+                              //   heroTag: 'dashboard_home_fab',
+                              backgroundColor: primaryColor,
+                              foregroundColor: Colors.white,
+                              shape: const CircleBorder(),
+                              onTap: _promptForLink,
+                              child: Icon(
+                                FluentSystemIcons.ic_fluent_link_regular,
+                                size: 15,
+                              ),
+
+                              label: 'Link',
+                              labelBackgroundColor: primaryColor,
+                              labelStyle: TextStyle(color: Colors.white),
+                            ),
+                            SpeedDialChild(
+                              //   heroTag: 'dashboard_home_fab',
+                              backgroundColor: primaryColor,
+                              foregroundColor: Colors.white,
+                              shape: const CircleBorder(),
+                              onTap: _insertCodeBlock,
+                              child: const Icon(Icons.code, size: 15),
+                              label: 'Code',
+                              labelBackgroundColor: primaryColor,
+                              labelStyle: TextStyle(color: Colors.white),
+                            ),
+                          ],
                         ),
+                        SizedBox(width: 8),
                         Expanded(
                           child: TextField(
+                            onChanged: (value) {
+                              setState(() {});
+                            },
                             controller: _controller,
                             minLines: 1,
                             maxLines: 5,
@@ -1555,34 +1611,9 @@ class _CoversationScreenState extends State<CoversationScreen> {
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
-                            if (_inputIsTall) ...[
-                              IconButton(
-                                icon: const Icon(Icons.image),
-                                onPressed: _sending
-                                    ? null
-                                    : () => _pickImageSource(),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.link),
-                                onPressed: _sending
-                                    ? null
-                                    : () => _promptForLink(),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.code),
-                                onPressed: _sending ? null : _insertCodeBlock,
-                              ),
-                            ],
                             IconButton(
                               icon: _sending
-                                  ? SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: primaryColor,
-                                      ),
-                                    )
+                                  ? Loading.medium(color: primaryColor)
                                   : Icon(
                                       FluentSystemIcons.ic_fluent_send_filled,
                                       color: primaryColor,

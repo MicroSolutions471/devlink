@@ -287,123 +287,124 @@ class UpdateChecker {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: EdgeInsets.only(
-            left: 24,
-            right: 24,
-            top: 16,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Container(
-                width: 40,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 18),
-                decoration: BoxDecoration(
-                  color: Theme.of(ctx).dividerColor,
-                  borderRadius: BorderRadius.circular(2),
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: EdgeInsets.only(
+              left: 24,
+              right: 24,
+              top: 16,
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 18),
+                  decoration: BoxDecoration(
+                    color: Theme.of(ctx).dividerColor,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
-              ),
-              Container(
-                decoration: BoxDecoration(
-                  color: Theme.of(ctx).colorScheme.primary.withOpacity(0.12),
-                  shape: BoxShape.circle,
+                Container(
+                  decoration: BoxDecoration(
+                    color: Theme.of(ctx).colorScheme.primary.withOpacity(0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  padding: const EdgeInsets.all(18),
+                  child: Icon(
+                    CarbonIcons.upgrade,
+                    color: primaryColor,
+                    size: 32,
+                  ),
                 ),
-                padding: const EdgeInsets.all(18),
-                child: Icon(CarbonIcons.upgrade, color: primaryColor, size: 32),
-              ),
-              const SizedBox(height: 14),
-              Text(
-                'Update Available',
-                style: TextStyle(
-                  fontWeight: FontWeight.w500,
-                  fontSize: 18,
-                  color: Theme.of(ctx).colorScheme.onSurface,
+                const SizedBox(height: 14),
+                Text(
+                  'Update Available',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w500,
+                    fontSize: 18,
+                    color: Theme.of(ctx).colorScheme.onSurface,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Installed: ${Config.appVersion}   →   Latest: $version',
-                style: TextStyle(
-                  color: Theme.of(ctx).colorScheme.onSurface.withOpacity(0.7),
-                  fontSize: 13,
+                const SizedBox(height: 8),
+                Text(
+                  'Installed: ${Config.appVersion}   →   Latest: $version',
+                  style: TextStyle(
+                    color: Theme.of(ctx).colorScheme.onSurface.withOpacity(0.7),
+                    fontSize: 13,
+                  ),
+                  textAlign: TextAlign.center,
                 ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Theme.of(ctx).colorScheme.surfaceVariant,
-                  borderRadius: BorderRadius.circular(10),
+                const SizedBox(height: 16),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "What's New:",
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 15,
+                          color: primaryColor,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        whatNew.isEmpty ? 'No details provided.' : whatNew,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Theme.of(ctx).colorScheme.onSurface,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                const SizedBox(height: 22),
+                Row(
                   children: [
-                    Text(
-                      "What's New:",
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 15,
-                        color: primaryColor,
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.of(ctx).pop(),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Theme.of(
+                            ctx,
+                          ).colorScheme.onSurface.withOpacity(0.7),
+                          side: BorderSide(color: Theme.of(ctx).dividerColor),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        child: const Text('Later'),
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      whatNew.isEmpty ? 'No details provided.' : whatNew,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Theme.of(ctx).colorScheme.onSurface,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.of(ctx).pop();
+                          _downloadAndInstallApp(context, link, version);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: primaryColor,
+                          foregroundColor: Theme.of(ctx).colorScheme.onPrimary,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        child: const Text('Update Now'),
                       ),
-                      maxLines: 6,
-                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 22),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.of(ctx).pop(),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Theme.of(
-                          ctx,
-                        ).colorScheme.onSurface.withOpacity(0.7),
-                        side: BorderSide(color: Theme.of(ctx).dividerColor),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                      child: const Text('Later'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.of(ctx).pop();
-                        _downloadAndInstallApp(context, link, version);
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: primaryColor,
-                        foregroundColor: Theme.of(ctx).colorScheme.onPrimary,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                      child: const Text('Update Now'),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

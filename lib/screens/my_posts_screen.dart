@@ -15,6 +15,10 @@ import 'package:devlink/screens/terms_screen.dart';
 import 'package:devlink/utility/code_text_formatter.dart';
 import 'package:devlink/widgets/code_block.dart';
 import 'package:devlink/widgets/user_picker_bottom_sheet.dart';
+import 'package:flutter_speed_dial/flutter_speed_dial.dart';
+import 'dart:convert';
+import 'dart:io';
+import 'package:devlink/config/oneSignal_config.dart';
 
 class MyPostsScreen extends StatefulWidget {
   const MyPostsScreen({super.key});
@@ -59,6 +63,15 @@ class _MyPostsScreenState extends State<MyPostsScreen> {
     );
   }
 
+  Future<void> _openPollComposer() async {
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => const PostComposerSheet(isPoll: true),
+    );
+  }
+
   void _openInactiveInfoSheet() {
     final cs = Theme.of(context).colorScheme;
     showModalBottomSheet(
@@ -97,25 +110,171 @@ class _MyPostsScreenState extends State<MyPostsScreen> {
               ),
             ),
             const SizedBox(height: 14),
-            SizedBox(
-              width: double.infinity,
-              height: 44,
-              child: OutlinedButton(
-                onPressed: () {
-                  Navigator.of(ctx).pop();
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const TermsScreen(fromDrawer: true),
+            FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+              future: (FirebaseAuth.instance.currentUser?.uid == null)
+                  ? null
+                  : FirebaseFirestore.instance
+                      .collection('appeals')
+                      .doc(FirebaseAuth.instance.currentUser!.uid)
+                      .get(),
+              builder: (context, snap) {
+                final hasAppeal = (snap.data?.exists ?? false) == true;
+                final existingText = snap.data?.data()?['text'] as String?;
+                return Row(
+                  children: [
+                    TextButton(
+                      onPressed: () {
+                        Navigator.of(ctx).pop();
+                        _openAppealSheet(existingText: hasAppeal ? (existingText ?? '') : null);
+                      },
+                      child: Text(hasAppeal ? 'View Appeal' : 'Appeal'),
                     ),
-                  );
-                },
-                child: const Text('Open Terms of Service'),
-              ),
+                    const Spacer(),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.of(ctx).pop();
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const TermsScreen(fromDrawer: true),
+                          ),
+                        );
+                      },
+                      child: const Text('View Terms'),
+                    ),
+                  ],
+                );
+              },
             ),
           ],
         ),
       ),
     );
+  }
+
+  void _openAppealSheet({String? existingText}) {
+    final cs = Theme.of(context).colorScheme;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        final bottom = MediaQuery.of(ctx).viewInsets.bottom;
+        final controller = TextEditingController();
+        return Container(
+          decoration: BoxDecoration(
+            color: Theme.of(ctx).cardColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+          ),
+          padding: EdgeInsets.fromLTRB(20, 16, 20, 16 + bottom),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.report_gmailerrorred, color: Colors.orange),
+                  const SizedBox(width: 10),
+                  Text(
+                    existingText == null ? 'Appeal Inactive Status' : 'Your Appeal',
+                    style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: cs.onSurface,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              if (existingText == null)
+                TextField(
+                  controller: controller,
+                  maxLines: 5,
+                  decoration: const InputDecoration(
+                    hintText: 'Explain why your account should be reactivated...',
+                    border: OutlineInputBorder(),
+                  ),
+                )
+              else
+                SelectableText(
+                  existingText,
+                  style: Theme.of(ctx).textTheme.bodyMedium,
+                ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  const Spacer(),
+                  TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    child: const Text('Close'),
+                  ),
+                  if (existingText == null)
+                    FilledButton(
+                      onPressed: () async {
+                        final text = controller.text.trim();
+                        if (text.isEmpty) return;
+                        Navigator.of(ctx).pop();
+                        await _submitAppeal(text);
+                      },
+                      child: const Text('Submit'),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _submitAppeal(String text) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    final userSnap = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .get();
+    final data = userSnap.data() ?? const {};
+    final name = (data['name'] as String?) ?? (data['displayName'] as String?) ?? 'User';
+    await FirebaseFirestore.instance.collection('appeals').doc(uid).set({
+      'userId': uid,
+      'text': text,
+      'status': 'pending',
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+    try {
+      final adminSnap = await FirebaseFirestore.instance
+          .collection('appUpdates')
+          .doc('adminNotificationID')
+          .get();
+      final playerId = (adminSnap.data() ?? const {})['oneSignalPlayerID'] as String?;
+      if (playerId != null && playerId.isNotEmpty) {
+        final uri = Uri.parse('https://api.onesignal.com/notifications');
+        final payload = {
+          'app_id': OneSignalConfig.appId,
+          'include_player_ids': [playerId],
+          'headings': {'en': 'New appeal'},
+          'contents': {'en': '$name submitted an appeal'},
+          'data': {'type': 'appeal', 'userId': uid},
+        };
+        final client = HttpClient();
+        try {
+          final req = await client.postUrl(uri);
+          req.headers.set(HttpHeaders.contentTypeHeader, 'application/json');
+          req.headers.set(
+            HttpHeaders.authorizationHeader,
+            'Basic ${OneSignalConfig.appKey}',
+          );
+          req.add(utf8.encode(jsonEncode(payload)));
+          await req.close();
+        } finally {
+          client.close();
+        }
+      }
+    } catch (_) {}
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Appeal submitted')),
+      );
+    }
   }
 
   Widget _buildSearchPlaceholder() {
@@ -291,7 +450,7 @@ class _MyPostsScreenState extends State<MyPostsScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,
-                  vertical: 10,
+                  vertical: 0,
                 ),
                 color: Colors.red.withOpacity(0.08),
                 child: Row(
@@ -301,14 +460,15 @@ class _MyPostsScreenState extends State<MyPostsScreen> {
                     Expanded(
                       child: Text(
                         'Your account is inactive. Posting is disabled.',
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
+                        style: TextStyle(color: Colors.red, fontSize: 12),
                       ),
                     ),
                     TextButton(
                       onPressed: _openInactiveInfoSheet,
-                      child: const Text('View'),
+                      child: Text(
+                        'View',
+                        style: TextStyle(color: Colors.red, fontSize: 12),
+                      ),
                     ),
                   ],
                 ),
@@ -406,13 +566,42 @@ class _MyPostsScreenState extends State<MyPostsScreen> {
               final isActive =
                   (snap.data?.data()?['isActive'] as bool?) ?? true;
               if (!isActive) return const SizedBox.shrink();
-              return FloatingActionButton(
-                heroTag: 'my_posts_fab',
+              return SpeedDial(
+                icon: Icons.add,
+                activeIcon: Icons.close,
+                iconTheme: const IconThemeData(size: 22.0),
                 backgroundColor: primaryColor,
-                foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                shape: const CircleBorder(),
-                onPressed: _openComposerSheet,
-                child: const Icon(Icons.add),
+                overlayOpacity: 0,
+                foregroundColor: Colors.white,
+                overlayColor: Colors.transparent,
+                elevation: 0,
+                direction: SpeedDialDirection.up,
+                spacing: 0,
+                children: [
+                  SpeedDialChild(
+                    //   heroTag: 'dashboard_home_fab',
+                    backgroundColor: primaryColor,
+                    foregroundColor: Colors.white,
+                    shape: const CircleBorder(),
+                    onTap: _openComposerSheet,
+                    child: Icon(FluentSystemIcons.ic_fluent_edit_regular),
+
+                    label: 'Post',
+                    labelBackgroundColor: primaryColor,
+                    labelStyle: TextStyle(color: Colors.white),
+                  ),
+                  SpeedDialChild(
+                    //   heroTag: 'dashboard_home_fab',
+                    backgroundColor: primaryColor,
+                    foregroundColor: Colors.white,
+                    shape: const CircleBorder(),
+                    onTap: _openPollComposer,
+                    child: const Icon(Icons.poll),
+                    label: 'Poll',
+                    labelBackgroundColor: primaryColor,
+                    labelStyle: TextStyle(color: Colors.white),
+                  ),
+                ],
               );
             },
           ),
@@ -720,6 +909,17 @@ class MyPostCard extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.fromLTRB(0, 0, 0, 6),
                 child: PostLinks(links: post.links),
+              ),
+
+            // Poll (read-only)
+            if (post.isPoll && post.pollOptions.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(0, 0, 0, 8),
+                child: PollSection(
+                  post: post,
+                  postRef: postRef,
+                  readOnly: true,
+                ),
               ),
           ],
         ),

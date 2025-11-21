@@ -137,6 +137,27 @@ service cloud.firestore {
                     && onlyAllowedKeysChanged(['replyCount'])
                     && isIncrementByOne('replyCount');
 
+      // Allow authenticated users to vote in polls
+      // Constraints:
+      // - Only pollCounts and pollVotedBy may change
+      // - Poll must not be stopped (cannot vote after stop)
+      // - pollOptions must remain unchanged
+      // - The voter must not have voted before, and is recorded with an int option index
+      // - pollCounts must remain a list with the same length
+      allow update: if onlyAllowedKeysChanged(['pollCounts','pollVotedBy'])
+                    && ((resource.data.pollStopped == false) || (resource.data.pollStopped == null))
+                    && (request.resource.data.pollStopped == false || request.resource.data.pollStopped == null)
+                    && request.resource.data.pollOptions == resource.data.pollOptions
+                    && (request.auth == null || resource.data.pollVotedBy[request.auth.uid] == null)
+                    && (request.auth == null || request.resource.data.pollVotedBy[request.auth.uid] is int)
+                    && request.resource.data.pollCounts is list
+                    && request.resource.data.pollCounts.size() == resource.data.pollCounts.size();
+
+      // Only post owner can stop a poll (irreversible)
+      allow update: if request.auth != null
+                    && resource.data.userId == request.auth.uid
+                    && onlyAllowedKeysChanged(['pollStopped','pollStoppedAt']);
+
       // Replies subcollection
       match /replies/{replyId} {
         // Everyone can read replies

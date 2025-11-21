@@ -133,7 +133,20 @@ class _ChatsScreenState extends State<ChatsScreen> {
             _cachedConversations = docs;
           }
 
-          if (docs.isEmpty) {
+          // Filter out conversations not visible to current user
+          final visibleDocs = docs.where((doc) {
+            final data = doc.data();
+            final participants =
+                (data['participants'] as List<dynamic>? ?? []).cast<String>();
+            if (!participants.contains(currentUserId)) return false;
+            final deletedFor =
+                (data['deletedFor'] as List<dynamic>? ?? const <dynamic>[])
+                    .cast<String>();
+            if (deletedFor.contains(currentUserId)) return false;
+            return true;
+          }).toList();
+
+          if (visibleDocs.isEmpty) {
             return Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -158,7 +171,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
             children: [
               ListView.separated(
                 padding: const EdgeInsets.only(bottom: 80),
-                itemCount: docs.length,
+                itemCount: visibleDocs.length,
                 separatorBuilder: (_, __) => Divider(
                   height: 1,
                   thickness: 0.5,
@@ -166,21 +179,11 @@ class _ChatsScreenState extends State<ChatsScreen> {
                   color: theme.dividerColor.withOpacity(0.3),
                 ),
                 itemBuilder: (context, index) {
-                  final doc = docs[index];
+                  final doc = visibleDocs[index];
                   final data = doc.data();
                   final participants =
                       (data['participants'] as List<dynamic>? ?? [])
                           .cast<String>();
-                  if (!participants.contains(currentUserId)) {
-                    return const SizedBox.shrink();
-                  }
-                  final deletedFor =
-                      (data['deletedFor'] as List<dynamic>? ??
-                              const <dynamic>[])
-                          .cast<String>();
-                  if (deletedFor.contains(currentUserId)) {
-                    return const SizedBox.shrink();
-                  }
                   final peerId = participants.firstWhere(
                     (id) => id != currentUserId,
                     orElse: () => currentUserId,

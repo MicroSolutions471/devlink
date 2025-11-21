@@ -18,6 +18,9 @@ import 'package:devlink/services/follow_service.dart';
 import 'package:devlink/screens/terms_screen.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+import 'package:devlink/config/oneSignal_config.dart';
 
 class HomeScreen extends StatefulWidget {
   final bool isSearchActive;
@@ -95,7 +98,8 @@ class _NewsTickerStripState extends State<NewsTickerStrip> {
           _startAutoScroll(docs.length);
         });
 
-        return SizedBox(
+        return Container(
+          margin: EdgeInsets.only(bottom: 1.5),
           width: double.infinity,
           height: 40,
           child: PageView.builder(
@@ -173,36 +177,38 @@ class _NewsTickerStripState extends State<NewsTickerStrip> {
               top: 12,
               bottom: bottom + 16,
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        title.isEmpty ? '(Untitled)' : title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          title.isEmpty ? '(Untitled)' : title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
-                    ),
-                    IconButton(
-                      onPressed: () => Navigator.of(ctx).pop(),
-                      icon: const Icon(Icons.close),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  body.isEmpty ? '(No body)' : body,
-                  style: const TextStyle(fontSize: 14, height: 1.45),
-                ),
-              ],
+                      IconButton(
+                        onPressed: () => Navigator.of(ctx).pop(),
+                        icon: const Icon(Icons.close),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    body.isEmpty ? '(No body)' : body,
+                    style: const TextStyle(fontSize: 14, height: 1.45),
+                  ),
+                ],
+              ),
             ),
           ),
         );
@@ -214,8 +220,6 @@ class _NewsTickerStripState extends State<NewsTickerStrip> {
 // HomeScreen now uses custom widgets for cleaner code organization
 
 class _HomeScreenState extends State<HomeScreen> {
-  bool _canReply = true;
-
   String get _searchQuery => widget.searchQuery.toLowerCase().trim();
   bool get _isSearchActive => widget.isSearchActive;
 
@@ -235,11 +239,8 @@ class _HomeScreenState extends State<HomeScreen> {
           .doc(currentUserId)
           .get()
           .then((snap) {
-            final isActive = (snap.data()?['isActive'] as bool?) ?? true;
             if (mounted) {
-              setState(() {
-                _canReply = isActive;
-              });
+              setState(() {});
             }
           })
           .catchError((_) {});
@@ -302,25 +303,180 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             const SizedBox(height: 14),
-            SizedBox(
-              width: double.infinity,
-              height: 44,
-              child: OutlinedButton(
-                onPressed: () {
-                  Navigator.of(ctx).pop();
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const TermsScreen(fromDrawer: true),
+            FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+              future: (FirebaseAuth.instance.currentUser?.uid == null)
+                  ? null
+                  : FirebaseFirestore.instance
+                        .collection('appeals')
+                        .doc(FirebaseAuth.instance.currentUser!.uid)
+                        .get(),
+              builder: (context, snap) {
+                final hasAppeal = (snap.data?.exists ?? false) == true;
+                final existingText = snap.data?.data()?['text'] as String?;
+                return Row(
+                  children: [
+                    TextButton(
+                      onPressed: () {
+                        Navigator.of(ctx).pop();
+                        _openAppealSheet(
+                          existingText: hasAppeal ? (existingText ?? '') : null,
+                        );
+                      },
+                      child: Text(hasAppeal ? 'View Appeal' : 'Appeal'),
                     ),
-                  );
-                },
-                child: const Text('Open Terms of Service'),
-              ),
+                    const Spacer(),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.of(ctx).pop();
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const TermsScreen(fromDrawer: true),
+                          ),
+                        );
+                      },
+                      child: const Text('View Terms'),
+                    ),
+                  ],
+                );
+              },
             ),
           ],
         ),
       ),
     );
+  }
+
+  void _openAppealSheet({String? existingText}) {
+    final cs = Theme.of(context).colorScheme;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        final bottom = MediaQuery.of(ctx).viewInsets.bottom;
+        final controller = TextEditingController();
+        return Container(
+          decoration: BoxDecoration(
+            color: Theme.of(ctx).cardColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+          ),
+          padding: EdgeInsets.fromLTRB(20, 16, 20, 16 + bottom),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.report_gmailerrorred, color: Colors.orange),
+                  const SizedBox(width: 10),
+                  Text(
+                    existingText == null
+                        ? 'Appeal Inactive Status'
+                        : 'Your Appeal',
+                    style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: cs.onSurface,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              if (existingText == null)
+                TextField(
+                  controller: controller,
+                  maxLines: 5,
+                  decoration: const InputDecoration(
+                    hintText:
+                        'Explain why your account should be reactivated...',
+                    border: OutlineInputBorder(),
+                  ),
+                )
+              else
+                SelectableText(
+                  existingText,
+                  style: Theme.of(ctx).textTheme.bodyMedium,
+                ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  const Spacer(),
+                  TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    child: const Text('Close'),
+                  ),
+                  if (existingText == null)
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () async {
+                          final text = controller.text.trim();
+                          if (text.isEmpty) return;
+                          Navigator.of(ctx).pop();
+                          await _submitAppeal(text);
+                        },
+                        child: const Text('Submit'),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _submitAppeal(String text) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    final userSnap = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .get();
+    final data = userSnap.data() ?? const {};
+    final name =
+        (data['name'] as String?) ?? (data['displayName'] as String?) ?? 'User';
+    await FirebaseFirestore.instance.collection('appeals').doc(uid).set({
+      'userId': uid,
+      'text': text,
+      'status': 'pending',
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+    try {
+      final adminSnap = await FirebaseFirestore.instance
+          .collection('appUpdates')
+          .doc('adminNotificationID')
+          .get();
+      final playerId =
+          (adminSnap.data() ?? const {})['oneSignalPlayerID'] as String?;
+      if (playerId != null && playerId.isNotEmpty) {
+        final uri = Uri.parse('https://api.onesignal.com/notifications');
+        final payload = {
+          'app_id': OneSignalConfig.appId,
+          'include_player_ids': [playerId],
+          'headings': {'en': 'New appeal'},
+          'contents': {'en': '$name submitted an appeal'},
+          'data': {'type': 'appeal', 'userId': uid},
+        };
+        final client = HttpClient();
+        try {
+          final req = await client.postUrl(uri);
+          req.headers.set(HttpHeaders.contentTypeHeader, 'application/json');
+          req.headers.set(
+            HttpHeaders.authorizationHeader,
+            'Basic ${OneSignalConfig.appKey}',
+          );
+          req.add(utf8.encode(jsonEncode(payload)));
+          await req.close();
+        } finally {
+          client.close();
+        }
+      }
+    } catch (_) {}
+    if (mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Appeal submitted')));
+    }
   }
 
   Widget _buildSearchPlaceholder() {
@@ -419,7 +575,9 @@ class _HomeScreenState extends State<HomeScreen> {
               backgroundColor: UserColors.getBackgroundColorForUser(
                 userId,
               ).withValues(alpha: 0.1),
-              backgroundImage: photo != null ? CachedNetworkImageProvider(photo) : null,
+              backgroundImage: photo != null
+                  ? CachedNetworkImageProvider(photo)
+                  : null,
               child: photo == null
                   ? Icon(
                       FluentSystemIcons.ic_fluent_person_filled,
@@ -468,11 +626,32 @@ class _HomeScreenState extends State<HomeScreen> {
     final ref =
         (postData['doc'] as DocumentSnapshot<Map<String, dynamic>>).reference;
 
-    return PostCard(
-      post: post,
-      postRef: ref,
-      onReplyTap: () => _openRepliesSheet(ref),
-      canReply: _canReply,
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    if (currentUserId == null) {
+      return PostCard(
+        key: ValueKey(ref.id),
+        post: post,
+        postRef: ref,
+        onReplyTap: () => _openRepliesSheet(ref),
+        canReply: false,
+      );
+    }
+
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUserId)
+          .snapshots(),
+      builder: (context, snap) {
+        final isActive = (snap.data?.data()?['isActive'] as bool?) ?? true;
+        return PostCard(
+          key: ValueKey(ref.id),
+          post: post,
+          postRef: ref,
+          onReplyTap: () => _openRepliesSheet(ref),
+          canReply: isActive,
+        );
+      },
     );
   }
 
@@ -682,7 +861,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,
-                  vertical: 10,
+                  vertical: 0,
                 ),
                 color: Colors.red.withOpacity(0.08),
                 child: Row(
@@ -692,14 +871,15 @@ class _HomeScreenState extends State<HomeScreen> {
                     Expanded(
                       child: Text(
                         'Your account is inactive. Posting is disabled.',
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
+                        style: TextStyle(color: Colors.red, fontSize: 12),
                       ),
                     ),
                     TextButton(
                       onPressed: _openInactiveInfoSheet,
-                      child: const Text('View'),
+                      child: Text(
+                        'View',
+                        style: TextStyle(color: Colors.red, fontSize: 12),
+                      ),
                     ),
                   ],
                 ),
@@ -713,31 +893,58 @@ class _HomeScreenState extends State<HomeScreen> {
               ? (_searchQuery.isNotEmpty
                     ? _buildSearchResults()
                     : _buildSearchPlaceholder())
-              : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                  stream: FirebaseFirestore.instance
-                      .collection('posts')
-                      .orderBy('createdAt', descending: true)
-                      .snapshots(),
-                  builder: (context, snap) {
-                    if (snap.connectionState == ConnectionState.waiting) {
-                      return const ShimmerPostList(count: 6);
-                    }
-                    final docs = snap.data?.docs ?? [];
-                    if (docs.isEmpty) {
+              : Builder(
+                  builder: (context) {
+                    final currentUserId =
+                        FirebaseAuth.instance.currentUser?.uid;
+                    if (currentUserId == null) {
                       return const Center(child: Text('No posts yet'));
                     }
-                    return ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 80),
-                      itemCount: docs.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 8),
-                      itemBuilder: (context, i) {
-                        final post = Post.fromDoc(docs[i]);
-                        final ref = docs[i].reference;
-                        return PostCard(
-                          post: post,
-                          postRef: ref,
-                          onReplyTap: () => _openRepliesSheet(ref),
-                          canReply: _canReply,
+                    return StreamBuilder<
+                      DocumentSnapshot<Map<String, dynamic>>
+                    >(
+                      stream: FirebaseFirestore.instance
+                          .collection('users')
+                          .doc(currentUserId)
+                          .snapshots(),
+                      builder: (context, userSnap) {
+                        final isActive =
+                            (userSnap.data?.data()?['isActive'] as bool?) ??
+                            true;
+                        return StreamBuilder<
+                          QuerySnapshot<Map<String, dynamic>>
+                        >(
+                          stream: FirebaseFirestore.instance
+                              .collection('posts')
+                              .orderBy('createdAt', descending: true)
+                              .snapshots(),
+                          builder: (context, snap) {
+                            if (snap.connectionState ==
+                                ConnectionState.waiting) {
+                              return const ShimmerPostList(count: 6);
+                            }
+                            final docs = snap.data?.docs ?? [];
+                            if (docs.isEmpty) {
+                              return const Center(child: Text('No posts yet'));
+                            }
+                            return ListView.separated(
+                              padding: const EdgeInsets.fromLTRB(12, 8, 12, 80),
+                              itemCount: docs.length,
+                              separatorBuilder: (_, __) =>
+                                  const SizedBox(height: 8),
+                              itemBuilder: (context, i) {
+                                final post = Post.fromDoc(docs[i]);
+                                final ref = docs[i].reference;
+                                return PostCard(
+                                  key: ValueKey(ref.id),
+                                  post: post,
+                                  postRef: ref,
+                                  onReplyTap: () => _openRepliesSheet(ref),
+                                  canReply: isActive,
+                                );
+                              },
+                            );
+                          },
                         );
                       },
                     );

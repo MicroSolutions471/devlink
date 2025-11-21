@@ -862,6 +862,11 @@ class _PostDetailScreenState extends State<PostDetailScreen>
               ),
             ],
 
+            if (post.isPoll && post.pollOptions.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              _DetailPollSection(post: post, postRef: postRef),
+            ],
+
             // Actions
             Padding(
               padding: const EdgeInsets.fromLTRB(6, 4, 6, 6),
@@ -1045,5 +1050,201 @@ class _PostDetailScreenState extends State<PostDetailScreen>
         ).showSnackBar(SnackBar(content: Text('Failed to share post: $e')));
       }
     }
+  }
+}
+
+class _DetailPollSection extends StatefulWidget {
+  final Post post;
+  final DocumentReference postRef;
+
+  const _DetailPollSection({required this.post, required this.postRef});
+
+  @override
+  State<_DetailPollSection> createState() => _DetailPollSectionState();
+}
+
+class _DetailPollSectionState extends State<_DetailPollSection> {
+  late List<int> counts;
+  late List<String> options;
+  late bool stopped;
+  int? myVote;
+  bool working = false;
+
+  @override
+  void initState() {
+    super.initState();
+    counts = List<int>.from(widget.post.pollCounts);
+    options = List<String>.from(widget.post.pollOptions);
+    stopped = widget.post.pollStopped;
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null) {
+      myVote = widget.post.pollVotedBy[uid];
+    }
+  }
+
+  int get total => counts.fold(0, (a, b) => a + b);
+
+  double pct(int idx) {
+    final t = total;
+    if (t == 0) return 0.0;
+    return counts[idx] / t;
+  }
+
+  Future<void> _vote(int index) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null || working || stopped || myVote != null) return;
+    setState(() {
+      working = true;
+      if (index >= 0 && index < counts.length) {
+        counts[index] = counts[index] + 1;
+      }
+      myVote = index;
+    });
+    try {
+      await FirebaseFirestore.instance.runTransaction((tx) async {
+        final snap = await tx.get(widget.postRef);
+        final data = snap.data() as Map<String, dynamic>? ?? {};
+        final isStopped = (data['pollStopped'] as bool?) ?? false;
+        if (isStopped) {
+          throw 'Poll has ended';
+        }
+        final currentCounts =
+            ((data['pollCounts'] as List?)?.map((e) {
+              if (e is int) return e;
+              if (e is num) return e.toInt();
+              return 0;
+            }).toList() ??
+            List<int>.filled(((data['pollOptions'] as List?)?.length ?? 0), 0));
+        if (index < 0 || index >= currentCounts.length) {
+          throw 'Invalid option';
+        }
+        final votedByRaw = (data['pollVotedBy'] as Map?) ?? const {};
+        if (votedByRaw.containsKey(uid)) {
+          throw 'Already voted';
+        }
+        currentCounts[index] = currentCounts[index] + 1;
+        tx.update(widget.postRef, {
+          'pollCounts': currentCounts,
+          'pollVotedBy.$uid': index,
+        });
+      });
+    } catch (e) {
+      setState(() {
+        if (index >= 0 && index < counts.length) {
+          counts[index] = counts[index] > 0 ? counts[index] - 1 : 0;
+        }
+        myVote = null;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(e.toString())));
+      }
+    } finally {
+      if (mounted) setState(() => working = false);
+    }
+  }
+
+  Future<void> _stopPoll() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null || working || stopped) return;
+    if (uid != widget.post.userId) return;
+    setState(() => working = true);
+    try {
+      await widget.postRef.update({
+        'pollStopped': true,
+        'pollStoppedAt': FieldValue.serverTimestamp(),
+      });
+      if (mounted) setState(() => stopped = true);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to stop poll: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => working = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final canVote = uid != null && !stopped && myVote == null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (int i = 0; i < options.length; i++) ...[
+          InkWell(
+            onTap: canVote ? () => _vote(i) : null,
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+              decoration: BoxDecoration(
+                border: Border.all(color: scheme.outline.withOpacity(0.2)),
+                borderRadius: BorderRadius.circular(8),
+                color: scheme.surfaceVariant.withOpacity(0.08),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          options[i],
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: myVote == i
+                                ? FontWeight.w600
+                                : FontWeight.w400,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        '${(pct(i) * 100).round()}%',
+                        style: TextStyle(fontSize: 10),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  LinearProgressIndicator(
+                    value: pct(i),
+                    minHeight: 6,
+                    color: Colors.green,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
+        Row(
+          children: [
+            Text(
+              total > 0 ? '$total votes' : 'No votes yet',
+              style: TextStyle(
+                color: scheme.onSurface.withOpacity(0.7),
+                fontSize: 12,
+              ),
+            ),
+            const Spacer(),
+            if (uid == widget.post.userId && !stopped)
+              TextButton(
+                onPressed: working ? null : _stopPoll,
+                child: const Text('Stop Poll'),
+              ),
+            if (stopped)
+              Text(
+                'Poll ended',
+                style: TextStyle(
+                  color: scheme.onSurface.withOpacity(0.7),
+                  fontSize: 12,
+                ),
+              ),
+          ],
+        ),
+      ],
+    );
   }
 }

@@ -23,6 +23,7 @@ class PostComposerSheet extends StatefulWidget {
   final DocumentReference? editPostRef; // for editing existing posts
   final String? editText; // initial text for editing
   final List<String>? editImageUrls; // existing image URLs for editing
+  final bool isPoll; // when true, compose a poll instead of a regular post
 
   const PostComposerSheet({
     super.key,
@@ -31,6 +32,7 @@ class PostComposerSheet extends StatefulWidget {
     this.editPostRef,
     this.editText,
     this.editImageUrls,
+    this.isPoll = false,
   });
 
   const PostComposerSheet.reply({
@@ -39,7 +41,8 @@ class PostComposerSheet extends StatefulWidget {
     this.quoted,
   }) : editPostRef = null,
        editText = null,
-       editImageUrls = null;
+       editImageUrls = null,
+       isPoll = false;
 
   const PostComposerSheet.edit({
     super.key,
@@ -47,7 +50,8 @@ class PostComposerSheet extends StatefulWidget {
     required this.editText,
     this.editImageUrls,
   }) : parentRef = null,
-       quoted = null;
+       quoted = null,
+       isPoll = false;
 
   @override
   State<PostComposerSheet> createState() => _PostComposerSheetState();
@@ -86,7 +90,9 @@ class _QuotedReplyBox extends StatelessWidget {
                   (u?['photoUrl'] as String?) ?? (u?['avatar'] as String?);
               return CircleAvatar(
                 radius: 14,
-                backgroundImage: photo != null ? CachedNetworkImageProvider(photo) : null,
+                backgroundImage: photo != null
+                    ? CachedNetworkImageProvider(photo)
+                    : null,
                 child: photo == null
                     ? Icon(
                         FluentSystemIcons.ic_fluent_person_filled,
@@ -174,6 +180,7 @@ class _PostComposerSheetState extends State<PostComposerSheet> {
   final List<String> _existingImageUrls =
       []; // For existing images when editing
   bool _loading = false;
+  final List<TextEditingController> _pollControllers = [];
 
   @override
   void initState() {
@@ -189,6 +196,12 @@ class _PostComposerSheetState extends State<PostComposerSheet> {
     // Load existing post data if editing
     if (widget.editPostRef != null) {
       _loadExistingPostData();
+    }
+
+    if (widget.isPoll) {
+      // Initialize with two empty options
+      _pollControllers.add(TextEditingController());
+      _pollControllers.add(TextEditingController());
     }
   }
 
@@ -246,6 +259,9 @@ class _PostComposerSheetState extends State<PostComposerSheet> {
   void dispose() {
     _text.dispose();
     _linkField.dispose();
+    for (final c in _pollControllers) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -506,12 +522,30 @@ class _PostComposerSheetState extends State<PostComposerSheet> {
     final text = _text.text.trim();
     // For editing, allow submission even if everything is empty (for deletions)
     // For new posts, require at least some content
-    if (widget.editPostRef == null &&
-        text.isEmpty &&
-        _images.isEmpty &&
-        _links.isEmpty &&
-        _existingImageUrls.isEmpty) {
-      return;
+    if (widget.editPostRef == null) {
+      final isEmptyBase =
+          text.isEmpty &&
+          _images.isEmpty &&
+          _links.isEmpty &&
+          _existingImageUrls.isEmpty;
+      final pollOptionTexts = widget.isPoll
+          ? _pollControllers
+                .map((c) => c.text.trim())
+                .where((t) => t.isNotEmpty)
+                .toList()
+          : const <String>[];
+      final pollInvalid = widget.isPoll && pollOptionTexts.length < 2;
+      if (isEmptyBase && (!widget.isPoll || pollInvalid)) {
+        return;
+      }
+      if (pollInvalid) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Add at least 2 poll options')),
+          );
+        }
+        return;
+      }
     }
     setState(() => _loading = true);
     try {
@@ -597,6 +631,12 @@ class _PostComposerSheetState extends State<PostComposerSheet> {
         } catch (_) {}
       } else {
         final user = FirebaseAuth.instance.currentUser;
+        final pollOptionTexts = widget.isPoll
+            ? _pollControllers
+                  .map((c) => c.text.trim())
+                  .where((t) => t.isNotEmpty)
+                  .toList()
+            : const <String>[];
         final post = Post(
           text: text.isEmpty ? null : text,
           imageUrls: urls,
@@ -604,6 +644,13 @@ class _PostComposerSheetState extends State<PostComposerSheet> {
           userId: uid,
           authorName: user?.displayName,
           authorPhotoUrl: user?.photoURL,
+          isPoll: widget.isPoll,
+          pollOptions: pollOptionTexts,
+          pollCounts: widget.isPoll
+              ? List<int>.filled(pollOptionTexts.length, 0)
+              : const <int>[],
+          pollVotedBy: const <String, int>{},
+          pollStopped: false,
         );
         final postRef = await FirebaseFirestore.instance
             .collection('posts')
@@ -662,7 +709,9 @@ class _PostComposerSheetState extends State<PostComposerSheet> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  widget.parentRef == null ? 'Create Post' : 'Reply',
+                  widget.parentRef == null
+                      ? (widget.isPoll ? 'Create Poll' : 'Create Post')
+                      : 'Reply',
                   style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
@@ -709,11 +758,15 @@ class _PostComposerSheetState extends State<PostComposerSheet> {
                                         : null,
                                     child: photo == null
                                         ? Icon(
-                                            FluentSystemIcons.ic_fluent_person_filled,
+                                            FluentSystemIcons
+                                                .ic_fluent_person_filled,
                                             size: 14,
-                                            color: UserColors.getIconColorForUser(
-                                              (widget.quoted?['userId'] as String?) ?? '',
-                                            ),
+                                            color:
+                                                UserColors.getIconColorForUser(
+                                                  (widget.quoted?['userId']
+                                                          as String?) ??
+                                                      '',
+                                                ),
                                           )
                                         : null,
                                   ),
@@ -772,6 +825,68 @@ class _PostComposerSheetState extends State<PostComposerSheet> {
                   ),
                 ),
                 const SizedBox(height: 12),
+
+                if (widget.isPoll && widget.parentRef == null) ...[
+                  Text(
+                    'Poll options',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ListView.separated(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: _pollControllers.length + 1,
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemBuilder: (context, i) {
+                      if (i < _pollControllers.length) {
+                        return Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: _pollControllers[i],
+                                decoration: InputDecoration(
+                                  hintText: 'Option ${i + 1}',
+                                  border: const OutlineInputBorder(),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            IconButton(
+                              onPressed: _pollControllers.length > 2
+                                  ? () => setState(
+                                      () => _pollControllers.removeAt(i),
+                                    )
+                                  : null,
+                              icon: Icon(
+                                FluentSystemIcons.ic_fluent_delete_regular,
+                                color: Colors.red,
+                                size: 16,
+                              ),
+                              style: IconButton.styleFrom(
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                padding: EdgeInsets.zero,
+                              ),
+                            ),
+                          ],
+                        );
+                      }
+                      return Align(
+                        alignment: Alignment.centerLeft,
+                        child: OutlinedButton.icon(
+                          onPressed: () => setState(
+                            () => _pollControllers.add(TextEditingController()),
+                          ),
+                          icon: const Icon(Icons.add),
+                          label: const Text('Add option'),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                ],
 
                 // Images preview
                 if (_existingImageUrls.isNotEmpty || _images.isNotEmpty) ...[

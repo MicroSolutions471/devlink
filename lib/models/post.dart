@@ -14,6 +14,11 @@ class Post {
   final List<String> dislikedBy;
   final String? authorName;
   final String? authorPhotoUrl;
+  final bool isPoll;
+  final List<String> pollOptions;
+  final List<int> pollCounts;
+  final Map<String, int> pollVotedBy;
+  final bool pollStopped;
 
   Post({
     this.id,
@@ -29,6 +34,11 @@ class Post {
     this.dislikedBy = const [],
     this.authorName,
     this.authorPhotoUrl,
+    this.isPoll = false,
+    this.pollOptions = const [],
+    this.pollCounts = const [],
+    this.pollVotedBy = const {},
+    this.pollStopped = false,
   });
 
   Map<String, dynamic> toMap() {
@@ -46,6 +56,11 @@ class Post {
       'dislikedBy': dislikedBy,
       'authorName': authorName,
       'authorPhotoUrl': authorPhotoUrl,
+      'isPoll': isPoll ? true : null,
+      'pollOptions': isPoll && pollOptions.isNotEmpty ? pollOptions : null,
+      'pollCounts': isPoll && pollCounts.isNotEmpty ? pollCounts : null,
+      'pollVotedBy': isPoll && pollVotedBy.isNotEmpty ? pollVotedBy : null,
+      'pollStopped': isPoll ? pollStopped : null,
     }..removeWhere((key, value) => value == null);
   }
 
@@ -67,6 +82,18 @@ class Post {
       dislikedBy: (d['dislikedBy'] as List?)?.cast<String>() ?? const [],
       authorName: d['authorName'] as String?,
       authorPhotoUrl: d['authorPhotoUrl'] as String?,
+      isPoll: (d['isPoll'] as bool?) ?? false,
+      pollOptions: (d['pollOptions'] as List?)?.cast<String>() ?? const [],
+      pollCounts: ((d['pollCounts'] as List?)?.map((e) {
+                if (e is int) return e;
+                if (e is num) return e.toInt();
+                return 0;
+              }).toList() ?? const []),
+      pollVotedBy: (d['pollVotedBy'] as Map?)?.map((k, v) => MapEntry(
+                k.toString(),
+                (v is int) ? v : (v is num ? v.toInt() : 0),
+              )) ?? const {},
+      pollStopped: (d['pollStopped'] as bool?) ?? false,
     );
   }
 }
